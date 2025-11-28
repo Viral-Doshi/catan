@@ -9,6 +9,29 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Health check and info routes
+app.get('/', (req, res) => {
+  res.json({
+    name: 'Catan Game Server',
+    status: 'running',
+    version: '1.0.0',
+    endpoints: {
+      health: '/health',
+      socket: 'ws://[this-url]'
+    },
+    author: 'Viral Doshi'
+  });
+});
+
+app.get('/health', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    uptime: process.uptime(),
+    activeGames: games.size,
+    timestamp: new Date().toISOString()
+  });
+});
+
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
