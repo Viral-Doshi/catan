@@ -108,5 +108,11 @@ catan/
 
 ## 📄 License
 
-This project is for educational purposes. Catan is a trademark of Catan GmbH.
+MIT License - See [LICENSE](LICENSE) for details.
+
+## ⚠️ Disclaimer
+
+This is an independent fan-made project for **educational purposes only**. It is NOT affiliated with, endorsed by, or connected to Catan GmbH, Catan Studio, or Asmodee.
+
+"Catan" is a registered trademark of Catan GmbH. For the official game, visit [catan.com](https://www.catan.com/).
 
