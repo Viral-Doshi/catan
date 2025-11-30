@@ -1,8 +1,8 @@
 .player-panel {
   background: var(--bg-secondary);
   border: 2px solid var(--border-color);
-  border-radius: 12px;
-  padding: 0.8rem;
+  border-radius: 10px;
+  padding: 0.5rem 0.6rem;
   transition: all 0.3s ease;
 }
 
@@ -18,8 +18,8 @@
 .player-header {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  margin-bottom: 0.6rem;
+  gap: 0.4rem;
+  margin-bottom: 0.4rem;
 }
 
 .turn-order-badge {
@@ -89,6 +89,16 @@
   animation: secretPulse 2s ease-in-out infinite;
 }
 
+.revealed-vp {
+  font-family: 'Cinzel', serif;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--accent-gold);
+  opacity: 0.8;
+  padding: 0 0.2rem;
+  cursor: help;
+}
+
 @keyframes secretPulse {
   0%, 100% { opacity: 0.5; }
   50% { opacity: 0.8; }
@@ -101,9 +111,9 @@
 
 .player-stats {
   display: flex;
-  gap: 0.8rem;
-  margin-bottom: 0.5rem;
-  padding: 0.4rem;
+  gap: 0.6rem;
+  margin-bottom: 0.3rem;
+  padding: 0.3rem;
   background: var(--bg-tertiary);
   border-radius: 6px;
 }

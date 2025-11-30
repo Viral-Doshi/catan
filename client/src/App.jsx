@@ -122,10 +122,10 @@ function App() {
     }, 4000);
   }, []);
 
-  const handleCreateGame = useCallback((playerName, isExtended = false) => {
+  const handleCreateGame = useCallback((playerName, isExtended = false, enableSpecialBuild = true) => {
     if (!socket) return;
     
-    socket.emit('createGame', { playerName, isExtended }, (response) => {
+    socket.emit('createGame', { playerName, isExtended, enableSpecialBuild }, (response) => {
       if (response.success) {
         setGameCode(response.gameCode);
         setPlayerId(response.playerId);

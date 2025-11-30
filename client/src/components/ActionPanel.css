@@ -1,41 +1,41 @@
 .action-panel {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.3rem;
 }
 
 .action-panel h3 {
   color: var(--accent-gold);
-  font-size: 1rem;
+  font-size: 0.9rem;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.3rem;
 }
 
 .action-panel h4 {
   color: var(--text-muted);
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  margin: 0.5rem 0 0.3rem;
+  margin: 0.3rem 0 0.2rem;
 }
 
 .action-section {
   border-top: 1px solid var(--border-color);
-  padding-top: 0.5rem;
+  padding-top: 0.3rem;
 }
 
 .action-btn {
   width: 100%;
-  padding: 0.7rem 1rem;
+  padding: 0.5rem 0.8rem;
   background: var(--bg-tertiary);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: 6px;
   color: var(--text-primary);
-  font-size: 0.95rem;
+  font-size: 0.85rem;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.4rem;
   text-align: left;
 }
 
@@ -76,8 +76,8 @@
 }
 
 .roll-btn {
-  font-size: 1.1rem;
-  padding: 1rem;
+  font-size: 0.95rem;
+  padding: 0.6rem;
 }
 
 .build-btn {
@@ -118,7 +118,7 @@
 }
 
 .end-turn-btn {
-  margin-top: 1rem;
+  margin-top: 0.5rem;
 }
 
 .special-action {

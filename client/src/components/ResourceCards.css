@@ -8,10 +8,10 @@
 .resource-card {
   display: flex;
   flex-direction: column;
-  width: 70px;
+  width: 65px;
   background: linear-gradient(180deg, var(--bg-tertiary), var(--bg-secondary));
   border: 2px solid var(--border-color);
-  border-radius: 10px;
+  border-radius: 8px;
   overflow: hidden;
   transition: all 0.2s ease;
 }
@@ -32,16 +32,16 @@
 
 .card-top {
   background: var(--resource-color);
-  padding: 0.6rem;
+  padding: 0.4rem;
   text-align: center;
 }
 
 .resource-icon {
-  font-size: 1.5rem;
+  font-size: 1.3rem;
 }
 
 .card-bottom {
-  padding: 0.4rem;
+  padding: 0.3rem;
   text-align: center;
   position: relative;
 }

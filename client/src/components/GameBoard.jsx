@@ -10,6 +10,7 @@ import DevCardModal from './DevCardModal';
 import DiscardModal from './DiscardModal';
 import CardReveal from './CardReveal';
 import InfoPopup, { useInfoPopup, INFO_DATA } from './InfoPopup';
+import Confetti from './Confetti';
 import './GameBoard.css';
 
 function GameBoard({ socket, gameState, playerId, gameCode, chatMessages, onLeaveGame, addNotification }) {
@@ -23,6 +24,12 @@ function GameBoard({ socket, gameState, playerId, gameCode, chatMessages, onLeav
   const [resourceGainNotification, setResourceGainNotification] = useState(null);
   const [revealedCard, setRevealedCard] = useState(null);
   const [lastTradeOfferId, setLastTradeOfferId] = useState(null);
+  const [dismissedTradeId, setDismissedTradeId] = useState(null);
+  const [showDice, setShowDice] = useState(false);
+  const [lastDiceRoll, setLastDiceRoll] = useState(null);
+  const [lastNotifiedRoll, setLastNotifiedRoll] = useState(null);
+  const [unreadMessages, setUnreadMessages] = useState(0);
+  const [lastMessageCount, setLastMessageCount] = useState(0);
   
   // Info popup for right-click
   const { popup: infoPopup, showInfo, showHexInfo, closePopup: closeInfoPopup } = useInfoPopup();
@@ -41,6 +48,24 @@ function GameBoard({ socket, gameState, playerId, gameCode, chatMessages, onLeav
   const isSpecialBuildPhase = gameState.specialBuildingPhase && gameState.turnPhase === 'specialBuild';
   const isMySpecialBuild = isSpecialBuildPhase && gameState.specialBuildIndex === gameState.myIndex;
   const canBuildNow = isMyTurn || isMySpecialBuild;
+
+  // Auto-hide dice display after 5 seconds
+  useEffect(() => {
+    if (gameState.diceRoll) {
+      const rollKey = `${gameState.diceRoll.dice1}-${gameState.diceRoll.dice2}-${Date.now()}`;
+      if (rollKey !== lastDiceRoll) {
+        setLastDiceRoll(rollKey);
+        setShowDice(true);
+        
+        // Hide dice after 5 seconds
+        const timer = setTimeout(() => {
+          setShowDice(false);
+        }, 5000);
+        
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [gameState.diceRoll]);
 
   // Listen for resource received events
   useEffect(() => {
@@ -107,6 +132,28 @@ function GameBoard({ socket, gameState, playerId, gameCode, chatMessages, onLeav
     };
   }, [socket, playerId, addNotification]);
 
+  // Track new chat messages for notification dot
+  useEffect(() => {
+    if (chatMessages.length > lastMessageCount) {
+      // Only increment unread if chat is closed and message is from another player
+      if (!showChat) {
+        const newMessages = chatMessages.slice(lastMessageCount);
+        const otherPlayerMessages = newMessages.filter(msg => msg.playerId !== playerId);
+        if (otherPlayerMessages.length > 0) {
+          setUnreadMessages(prev => prev + otherPlayerMessages.length);
+        }
+      }
+      setLastMessageCount(chatMessages.length);
+    }
+  }, [chatMessages, lastMessageCount, showChat, playerId]);
+
+  // Reset unread count when chat is opened
+  useEffect(() => {
+    if (showChat) {
+      setUnreadMessages(0);
+    }
+  }, [showChat]);
+
   // Auto-open trade modal when there's a pending trade from another player
   useEffect(() => {
     const tradeOffer = gameState.tradeOffer;
@@ -119,11 +166,13 @@ function GameBoard({ socket, gameState, playerId, gameCode, chatMessages, onLeav
       // New trade from another player - auto open the modal
       setShowTradeModal(true);
       setLastTradeOfferId(tradeId);
+      setDismissedTradeId(null); // Reset dismissed state for new trade
       const traderName = gameState.players[tradeOffer.from]?.name || 'A player';
       addNotification(`${traderName} wants to trade with you!`);
     } else if (!tradeOffer) {
-      // Trade was cancelled or completed
+      // Trade was cancelled or completed - clear all trade state
       setLastTradeOfferId(null);
+      setDismissedTradeId(null);
     }
   }, [gameState.tradeOffer, gameState.myIndex, gameState.players, lastTradeOfferId, addNotification]);
 
@@ -149,15 +198,29 @@ function GameBoard({ socket, gameState, playerId, gameCode, chatMessages, onLeav
     }
   }, [isSetup, isMyTurn, gameState]);
 
-  // Handle dice roll notification
+  // Reset roll notification tracker when turn phase goes back to 'roll' (new turn)
   useEffect(() => {
-    if (gameState.diceRoll) {
-      const roller = gameState.players[gameState.currentPlayerIndex];
-      if (gameState.diceRoll.total === 7) {
+    if (gameState.turnPhase === 'roll') {
+      setLastNotifiedRoll(null);
+    }
+  }, [gameState.turnPhase]);
+
+  // Handle dice roll notification (only once per unique roll)
+  useEffect(() => {
+    if (gameState.diceRoll && gameState.turnPhase !== 'roll') {
+      // Create unique key for this roll to prevent duplicate notifications
+      const rollKey = `${gameState.diceRoll.dice1}-${gameState.diceRoll.dice2}-${gameState.currentPlayerIndex}`;
+      
+      if (rollKey !== lastNotifiedRoll && gameState.diceRoll.total === 7) {
+        const roller = gameState.players[gameState.currentPlayerIndex];
         addNotification(`${roller.name} rolled a 7! Move the robber.`);
+        setLastNotifiedRoll(rollKey);
+      } else if (rollKey !== lastNotifiedRoll) {
+        // Track non-7 rolls too to prevent re-triggering
+        setLastNotifiedRoll(rollKey);
       }
     }
-  }, [gameState.diceRoll]);
+  }, [gameState.diceRoll, gameState.turnPhase, gameState.currentPlayerIndex, gameState.players, lastNotifiedRoll, addNotification]);
 
   // Handle winner
   useEffect(() => {
@@ -394,6 +457,7 @@ function GameBoard({ socket, gameState, playerId, gameCode, chatMessages, onLeav
               isMe={idx === gameState.myIndex}
               longestRoad={gameState.longestRoadPlayer === idx}
               largestArmy={gameState.largestArmyPlayer === idx}
+              gameOver={gameState.phase === 'finished'}
               onRightClick={(e, key, extra) => {
                 if (extra) {
                   // Custom info passed
@@ -456,8 +520,8 @@ function GameBoard({ socket, gameState, playerId, gameCode, chatMessages, onLeav
             freeRoads={gameState.freeRoads}
           />
           
-          {/* Dice display */}
-          {gameState.diceRoll && (
+          {/* Dice display - auto-hides after 5 seconds */}
+          {showDice && gameState.diceRoll && (
             <DiceDisplay 
               roll={gameState.diceRoll} 
               onRightClick={(e, key, extra) => showInfo(e, key, extra)}
@@ -494,6 +558,9 @@ function GameBoard({ socket, gameState, playerId, gameCode, chatMessages, onLeav
             onClick={() => setShowChat(!showChat)}
           >
             💬 Chat
+            {unreadMessages > 0 && (
+              <span className="chat-notification-dot">{unreadMessages}</span>
+            )}
           </button>
         </div>
       </div>
@@ -548,13 +615,26 @@ function GameBoard({ socket, gameState, playerId, gameCode, chatMessages, onLeav
       )}
 
       {/* Trade Notification Banner - shows when there's a pending trade from another player */}
-      {gameState.tradeOffer && gameState.tradeOffer.from !== gameState.myIndex && !showTradeModal && (
-        <div className="trade-notification-banner" onClick={() => setShowTradeModal(true)}>
+      {gameState.tradeOffer && 
+       gameState.tradeOffer.from !== gameState.myIndex && 
+       !showTradeModal && 
+       dismissedTradeId !== lastTradeOfferId && (
+        <div className="trade-notification-banner">
           <span className="trade-icon">🤝</span>
-          <span className="trade-text">
+          <span className="trade-text" onClick={() => setShowTradeModal(true)}>
             <strong>{gameState.players[gameState.tradeOffer.from]?.name}</strong> wants to trade with you!
           </span>
-          <button className="view-trade-btn">View Trade</button>
+          <button className="view-trade-btn" onClick={() => setShowTradeModal(true)}>View Trade</button>
+          <button 
+            className="dismiss-trade-btn" 
+            onClick={(e) => {
+              e.stopPropagation();
+              setDismissedTradeId(lastTradeOfferId);
+            }}
+            title="Dismiss notification"
+          >
+            ✕
+          </button>
         </div>
       )}
 
@@ -656,6 +736,13 @@ function GameBoard({ socket, gameState, playerId, gameCode, chatMessages, onLeav
           position={infoPopup.position}
           info={infoPopup.info}
           onClose={closeInfoPopup}
+        />
+      )}
+
+      {/* Victory celebration with confetti */}
+      {gameState.phase === 'finished' && gameState.winner && (
+        <Confetti 
+          winner={gameState.players.find(p => p.id === gameState.winner)}
         />
       )}
     </div>

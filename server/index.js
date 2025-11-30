@@ -94,14 +94,14 @@ io.on('connection', (socket) => {
   console.log('Player connected:', socket.id);
   
   // Create a new game
-  socket.on('createGame', ({ playerName, isExtended = false }, callback) => {
+  socket.on('createGame', ({ playerName, isExtended = false, enableSpecialBuild = true }, callback) => {
     const gameCode = generateGameCode();
     const playerId = uuidv4();
     
     const game = GameLogic.createGame(gameCode, {
       id: playerId,
       name: playerName
-    }, isExtended);
+    }, isExtended, enableSpecialBuild);
     
     games.set(gameCode, game);
     playerSockets.set(socket.id, { gameId: gameCode, playerId });

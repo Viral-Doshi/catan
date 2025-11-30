@@ -521,7 +521,7 @@ export function getAdjacentVertices(vKey, hexes) {
 }
 
 // Create initial game state
-export function createGame(gameId, hostPlayer, isExtended = false) {
+export function createGame(gameId, hostPlayer, isExtended = false, enableSpecialBuild = true) {
   // Select board configuration based on game mode
   const HEX_POSITIONS = isExtended ? HEX_POSITIONS_EXTENDED : HEX_POSITIONS_STANDARD;
   const TERRAIN_DISTRIBUTION = isExtended ? TERRAIN_DISTRIBUTION_EXTENDED : TERRAIN_DISTRIBUTION_STANDARD;
@@ -595,6 +595,7 @@ export function createGame(gameId, hostPlayer, isExtended = false) {
     turnPhase: 'roll', // roll, main, robber, discard, specialBuild
     isExtended, // 5-6 player extension flag
     maxPlayers: MAX_PLAYERS,
+    enableSpecialBuild, // Whether special building phase is enabled (optional rule)
     specialBuildingPhase: false, // True during special building phase
     specialBuildIndex: 0, // Which player is currently in special build phase
     ports, // Port locations and types
@@ -1518,8 +1519,8 @@ export function endTurn(game, playerId) {
   game.freeRoads = 0;
   game.yearOfPlentyPicks = 0;
   
-  // In 5-6 player games, start Special Building Phase
-  if (game.isExtended && game.players.length > 4) {
+  // In 5-6 player games, start Special Building Phase (if enabled)
+  if (game.isExtended && game.players.length > 4 && game.enableSpecialBuild) {
     game.specialBuildingPhase = true;
     // Start with the player after the current player
     game.specialBuildIndex = (playerIndex + 1) % game.players.length;

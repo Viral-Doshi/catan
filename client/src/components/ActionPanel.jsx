@@ -40,8 +40,8 @@ function ActionPanel({
   const canTrade = isMyTurn && turnPhase === 'main' && !isSpecialBuildPhase;
   const canEnd = isMyTurn && turnPhase === 'main' && !isSpecialBuildPhase;
   
-  // Can only play dev cards on your own turn, not during special build
-  const canPlayDevCards = isMyTurn && turnPhase === 'main';
+  // Can play dev cards on your own turn before or after rolling (but not during special build)
+  const canPlayDevCards = isMyTurn && (turnPhase === 'roll' || turnPhase === 'main');
 
   const canAffordRoad = hasResources(player, BUILDING_COSTS.road) || freeRoads > 0;
   const canAffordSettlement = hasResources(player, BUILDING_COSTS.settlement);

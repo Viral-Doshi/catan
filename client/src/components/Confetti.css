@@ -1,0 +1,134 @@
+.confetti-container {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.confetti-piece {
+  position: absolute;
+  top: -20px;
+  opacity: 0;
+  animation: confetti-fall linear forwards;
+}
+
+.confetti-piece.square {
+  border-radius: 2px;
+}
+
+.confetti-piece.circle {
+  border-radius: 50%;
+}
+
+@keyframes confetti-fall {
+  0% {
+    opacity: 1;
+    top: -5%;
+    transform: translateX(0) rotateZ(0deg);
+  }
+  25% {
+    opacity: 1;
+    transform: translateX(30px) rotateZ(90deg);
+  }
+  50% {
+    opacity: 1;
+    transform: translateX(-20px) rotateZ(180deg);
+  }
+  75% {
+    opacity: 0.8;
+    transform: translateX(40px) rotateZ(270deg);
+  }
+  100% {
+    opacity: 0;
+    top: 105%;
+    transform: translateX(-10px) rotateZ(360deg);
+  }
+}
+
+.winner-banner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: auto;
+  animation: winner-appear 0.5s ease-out forwards;
+}
+
+@keyframes winner-appear {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.5);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.1);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+.winner-trophy {
+  font-size: 5rem;
+  animation: trophy-bounce 1s ease-in-out infinite;
+  filter: drop-shadow(0 0 20px rgba(212, 169, 66, 0.8));
+}
+
+@keyframes trophy-bounce {
+  0%, 100% { transform: translateY(0) rotate(-5deg); }
+  50% { transform: translateY(-15px) rotate(5deg); }
+}
+
+.winner-text {
+  font-size: 3.5rem;
+  font-family: 'Cinzel', serif;
+  color: var(--accent-gold);
+  text-shadow: 
+    0 0 20px rgba(212, 169, 66, 0.8),
+    0 4px 15px rgba(0, 0, 0, 0.5);
+  margin: 1rem 0;
+  letter-spacing: 0.1em;
+  animation: text-glow 2s ease-in-out infinite;
+}
+
+@keyframes text-glow {
+  0%, 100% { 
+    text-shadow: 
+      0 0 20px rgba(212, 169, 66, 0.8),
+      0 4px 15px rgba(0, 0, 0, 0.5);
+  }
+  50% { 
+    text-shadow: 
+      0 0 40px rgba(212, 169, 66, 1),
+      0 0 60px rgba(212, 169, 66, 0.6),
+      0 4px 15px rgba(0, 0, 0, 0.5);
+  }
+}
+
+.winner-subtitle {
+  font-size: 1.5rem;
+  color: var(--text-secondary);
+  margin-bottom: 1.5rem;
+}
+
+.celebration-emojis {
+  font-size: 2.5rem;
+  animation: emoji-wave 1.5s ease-in-out infinite;
+}
+
+@keyframes emoji-wave {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+/* Dark overlay */
+.confetti-container::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  pointer-events: auto;
+}
+

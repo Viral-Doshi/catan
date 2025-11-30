@@ -47,7 +47,8 @@ function DevCardModal({ socket, myPlayer, isMyTurn, turnPhase, yearOfPlentyPicks
   const [selectedCard, setSelectedCard] = useState(null);
   const [monopolyResource, setMonopolyResource] = useState(null);
 
-  const canPlay = isMyTurn && turnPhase === 'main';
+  // Can play dev cards before rolling (roll phase) or after rolling (main phase)
+  const canPlay = isMyTurn && (turnPhase === 'roll' || turnPhase === 'main');
 
   const handlePlayCard = (cardType) => {
     if (cardType === 'monopoly') {

@@ -630,14 +630,30 @@ function HexBoard({
             parseInt(v2Match[3])
           );
           
-          // Calculate midpoint and direction for port placement
+          // Calculate midpoint of the edge (center of hexagon edge near port)
           const midX = (v1Pos.x + v2Pos.x) / 2;
           const midY = (v1Pos.y + v2Pos.y) / 2;
           
-          // Position port slightly outside the board edge
-          const offsetDir = Math.atan2(midY, midX);
-          const portX = midX + Math.cos(offsetDir) * 35;
-          const portY = midY + Math.sin(offsetDir) * 35;
+          // Calculate outward direction (perpendicular to edge, pointing away from board center)
+          // Edge vector
+          const edgeX = v2Pos.x - v1Pos.x;
+          const edgeY = v2Pos.y - v1Pos.y;
+          // Perpendicular vector (rotate 90 degrees)
+          let perpX = -edgeY;
+          let perpY = edgeX;
+          // Normalize
+          const perpLen = Math.sqrt(perpX * perpX + perpY * perpY);
+          perpX /= perpLen;
+          perpY /= perpLen;
+          // Make sure it points outward (away from center 0,0)
+          const dotProduct = perpX * midX + perpY * midY;
+          if (dotProduct < 0) {
+            perpX = -perpX;
+            perpY = -perpY;
+          }
+          // Position port at a good distance from the edge center
+          const portX = midX + perpX * 28;
+          const portY = midY + perpY * 28;
           
           const portColor = port.resource ? '#8b4513' : '#4a4a4a';
           
@@ -650,9 +666,9 @@ function HexBoard({
                 x2={v1Pos.x}
                 y2={v1Pos.y}
                 stroke="#8b7355"
-                strokeWidth="3"
-                strokeDasharray="4,4"
-                opacity="0.6"
+                strokeWidth="2"
+                strokeDasharray="3,3"
+                opacity="0.5"
               />
               <line
                 x1={portX}
@@ -660,30 +676,30 @@ function HexBoard({
                 x2={v2Pos.x}
                 y2={v2Pos.y}
                 stroke="#8b7355"
-                strokeWidth="3"
-                strokeDasharray="4,4"
-                opacity="0.6"
+                strokeWidth="2"
+                strokeDasharray="3,3"
+                opacity="0.5"
               />
               
-              {/* Port ship/dock icon */}
+              {/* Port ship/dock icon - smaller and more compact */}
               <g transform={`translate(${portX}, ${portY})`}>
                 <circle
-                  r="18"
+                  r="13"
                   fill={portColor}
                   stroke="#5a3d25"
-                  strokeWidth="2"
+                  strokeWidth="1.5"
                 />
                 <text
                   textAnchor="middle"
-                  y="5"
-                  fontSize="14"
+                  y="4"
+                  fontSize="11"
                 >
                   {port.icon}
                 </text>
                 <text
                   textAnchor="middle"
-                  y="28"
-                  fontSize="9"
+                  y="22"
+                  fontSize="8"
                   fill="white"
                   fontWeight="bold"
                   style={{ textShadow: '1px 1px 2px black' }}

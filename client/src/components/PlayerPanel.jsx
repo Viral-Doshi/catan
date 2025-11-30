@@ -1,6 +1,6 @@
 import './PlayerPanel.css';
 
-function PlayerPanel({ player, isCurrentTurn, isMe, longestRoad, largestArmy, onRightClick }) {
+function PlayerPanel({ player, isCurrentTurn, isMe, longestRoad, largestArmy, onRightClick, gameOver = false }) {
   const totalCards = typeof player.resources === 'number' 
     ? player.resources 
     : Object.values(player.resources).reduce((a, b) => a + b, 0);
@@ -42,10 +42,17 @@ function PlayerPanel({ player, isCurrentTurn, isMe, longestRoad, largestArmy, on
           onContextMenu={(e) => handleRightClick(e, 'victoryPoints')}
           title="Right-click for info"
         >
-          <span className="vp-number">{player.victoryPoints}</span>
-          {isMe && hiddenVP > 0 && (
+          <span className="vp-number">
+            {gameOver ? player.victoryPoints + hiddenVP : player.victoryPoints}
+          </span>
+          {!gameOver && isMe && hiddenVP > 0 && (
             <span className="hidden-vp" title="Hidden VP from Development Cards (only you can see this)">
               +{hiddenVP}
+            </span>
+          )}
+          {gameOver && hiddenVP > 0 && (
+            <span className="revealed-vp" title="Hidden VP from Development Cards (now revealed)">
+              ({hiddenVP} hidden)
             </span>
           )}
           <span className="vp-label">VP</span>

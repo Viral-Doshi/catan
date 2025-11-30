@@ -8,6 +8,7 @@ function Lobby({ onCreateGame, onJoinGame, error, setError }) {
   const [gameCode, setGameCode] = useState('');
   const [showRules, setShowRules] = useState(false);
   const [isExtended, setIsExtended] = useState(false);
+  const [enableSpecialBuild, setEnableSpecialBuild] = useState(true);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -18,7 +19,7 @@ function Lobby({ onCreateGame, onJoinGame, error, setError }) {
     }
     
     if (mode === 'create') {
-      onCreateGame(playerName.trim(), isExtended);
+      onCreateGame(playerName.trim(), isExtended, enableSpecialBuild);
     } else if (mode === 'join') {
       if (!gameCode.trim()) {
         setError('Please enter a game code');
@@ -90,29 +91,48 @@ function Lobby({ onCreateGame, onJoinGame, error, setError }) {
             </div>
             
             {mode === 'create' && (
-              <div className="form-group game-mode-group">
-                <label>Game Mode</label>
-                <div className="game-mode-options">
-                  <button
-                    type="button"
-                    className={`mode-option ${!isExtended ? 'active' : ''}`}
-                    onClick={() => setIsExtended(false)}
-                  >
-                    <span className="mode-icon">🎲</span>
-                    <span className="mode-label">Standard</span>
-                    <span className="mode-desc">2-4 Players</span>
-                  </button>
-                  <button
-                    type="button"
-                    className={`mode-option ${isExtended ? 'active' : ''}`}
-                    onClick={() => setIsExtended(true)}
-                  >
-                    <span className="mode-icon">👥</span>
-                    <span className="mode-label">Extended</span>
-                    <span className="mode-desc">5-6 Players</span>
-                  </button>
+              <>
+                <div className="form-group game-mode-group">
+                  <label>Game Mode</label>
+                  <div className="game-mode-options">
+                    <button
+                      type="button"
+                      className={`mode-option ${!isExtended ? 'active' : ''}`}
+                      onClick={() => setIsExtended(false)}
+                    >
+                      <span className="mode-icon">🎲</span>
+                      <span className="mode-label">Standard</span>
+                      <span className="mode-desc">2-4 Players</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`mode-option ${isExtended ? 'active' : ''}`}
+                      onClick={() => setIsExtended(true)}
+                    >
+                      <span className="mode-icon">👥</span>
+                      <span className="mode-label">Extended</span>
+                      <span className="mode-desc">5-6 Players</span>
+                    </button>
+                  </div>
                 </div>
-              </div>
+                
+                {/* Special Building Phase option - only for extended mode */}
+                {isExtended && (
+                  <div className="form-group special-build-option">
+                    <label className="checkbox-label">
+                      <input
+                        type="checkbox"
+                        checked={enableSpecialBuild}
+                        onChange={(e) => setEnableSpecialBuild(e.target.checked)}
+                      />
+                      <span className="checkbox-text">
+                        <span className="checkbox-title">🏗️ Special Building Phase</span>
+                        <span className="checkbox-desc">Allow all players to build after each turn</span>
+                      </span>
+                    </label>
+                  </div>
+                )}
+              </>
             )}
             
             {mode === 'join' && (
