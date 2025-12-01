@@ -65,7 +65,7 @@ This deployment uses **free hosting tiers** with the following limitations:
 - Limited to ~200 concurrent players and ~50 active games
 - Server may experience slowdowns during high traffic
 
-**For uninterrupted gameplay**, consider deploying your own private instance using the instructions above. Fork this repository and deploy to your own Vercel/Render accounts for a dedicated experience.
+**For uninterrupted gameplay**, consider deploying your own private instance. Fork this repository and deploy to your own Vercel/Render accounts for a dedicated experience.
 
 ## 🛠️ Tech Stack
 
