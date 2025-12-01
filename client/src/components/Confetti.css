@@ -132,3 +132,26 @@
   pointer-events: auto;
 }
 
+.back-to-lobby-btn {
+  margin-top: 2rem;
+  padding: 1rem 2rem;
+  font-size: 1.2rem;
+  font-weight: 600;
+  background: linear-gradient(135deg, var(--accent-gold), var(--accent-copper));
+  border: none;
+  border-radius: 12px;
+  color: var(--bg-primary);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(212, 169, 66, 0.4);
+}
+
+.back-to-lobby-btn:hover {
+  transform: translateY(-3px) scale(1.05);
+  box-shadow: 0 8px 25px rgba(212, 169, 66, 0.6);
+}
+
+.back-to-lobby-btn:active {
+  transform: translateY(0) scale(1);
+}
+

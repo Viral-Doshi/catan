@@ -12,7 +12,7 @@ const CONFETTI_COLORS = [
   '#e74c3c', // bright red
 ];
 
-function Confetti({ winner }) {
+function Confetti({ winner, onBackToLobby }) {
   const [confetti, setConfetti] = useState([]);
 
   useEffect(() => {
@@ -64,6 +64,11 @@ function Confetti({ winner }) {
         <div className="celebration-emojis">
           🎉 🎊 🥳 🎉 🎊
         </div>
+        {onBackToLobby && (
+          <button className="back-to-lobby-btn" onClick={onBackToLobby}>
+            🏠 Back to Lobby
+          </button>
+        )}
       </div>
     </div>
   );

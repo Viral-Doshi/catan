@@ -147,7 +147,7 @@ function ActionPanel({
           onClick={onOpenTrade}
           disabled={!canTrade}
         >
-          🤝 Trade with Players
+          🤝 Trade
         </button>
       </div>
 

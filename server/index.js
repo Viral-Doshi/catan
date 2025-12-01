@@ -230,13 +230,36 @@ io.on('connection', (socket) => {
         playerId: playerInfo.playerId 
       });
       
-      // Broadcast resource gains to all players
+      // Broadcast resource gains to all players (resource gains are public in Catan)
       if (result.resourceGains) {
+        // Collect all gains for broadcast
+        const allGains = [];
         game.players.forEach((player, idx) => {
           const gains = result.resourceGains[idx];
           const hasGains = Object.values(gains).some(v => v > 0);
           if (hasGains) {
-            // Find socket for this player and send them their gains
+            allGains.push({
+              playerId: player.id,
+              playerName: player.name,
+              playerIndex: idx,
+              gains
+            });
+          }
+        });
+        
+        // Broadcast all resource gains to everyone in the game
+        if (allGains.length > 0) {
+          broadcastToGame(playerInfo.gameId, 'resourcesDistributed', {
+            fromRoll: result.roll.total,
+            allGains
+          });
+        }
+        
+        // Also send personal notification to each player who received resources
+        game.players.forEach((player, idx) => {
+          const gains = result.resourceGains[idx];
+          const hasGains = Object.values(gains).some(v => v > 0);
+          if (hasGains) {
             const socketEntry = [...playerSockets.entries()]
               .find(([_, v]) => v.gameId === playerInfo.gameId && v.playerId === player.id);
             if (socketEntry) {

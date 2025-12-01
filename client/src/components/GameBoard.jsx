@@ -26,7 +26,6 @@ function GameBoard({ socket, gameState, playerId, gameCode, chatMessages, onLeav
   const [lastTradeOfferId, setLastTradeOfferId] = useState(null);
   const [dismissedTradeId, setDismissedTradeId] = useState(null);
   const [showDice, setShowDice] = useState(false);
-  const [lastDiceRoll, setLastDiceRoll] = useState(null);
   const [lastNotifiedRoll, setLastNotifiedRoll] = useState(null);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [lastMessageCount, setLastMessageCount] = useState(0);
@@ -51,23 +50,23 @@ function GameBoard({ socket, gameState, playerId, gameCode, chatMessages, onLeav
 
   // Auto-hide dice display after 5 seconds
   useEffect(() => {
-    if (gameState.diceRoll) {
-      const rollKey = `${gameState.diceRoll.dice1}-${gameState.diceRoll.dice2}-${Date.now()}`;
-      if (rollKey !== lastDiceRoll) {
-        setLastDiceRoll(rollKey);
-        setShowDice(true);
-        
-        // Hide dice after 5 seconds
-        const timer = setTimeout(() => {
-          setShowDice(false);
-        }, 5000);
-        
-        return () => clearTimeout(timer);
-      }
+    if (gameState.diceRoll && gameState.turnPhase !== 'roll') {
+      // Show the dice
+      setShowDice(true);
+      
+      // Hide dice after 5 seconds
+      const timer = setTimeout(() => {
+        setShowDice(false);
+      }, 5000);
+      
+      return () => clearTimeout(timer);
+    } else if (gameState.turnPhase === 'roll') {
+      // Reset when new turn starts (waiting for roll)
+      setShowDice(false);
     }
-  }, [gameState.diceRoll]);
+  }, [gameState.diceRoll?.dice1, gameState.diceRoll?.dice2, gameState.turnPhase, gameState.currentPlayerIndex]);
 
-  // Listen for resource received events
+  // Listen for personal resource received events (shows center popup for your own gains)
   useEffect(() => {
     const handleResourcesReceived = ({ gains, fromRoll }) => {
       const resourceNames = { brick: '🧱', lumber: '🪵', wool: '🐑', grain: '🌾', ore: '⛏️' };
@@ -77,6 +76,7 @@ function GameBoard({ socket, gameState, playerId, gameCode, chatMessages, onLeav
         .join(' ');
       
       if (gainsList) {
+        // Show center popup for your own resources
         setResourceGainNotification({ gains, fromRoll, gainsList });
         setTimeout(() => setResourceGainNotification(null), 4000);
       }
@@ -85,6 +85,31 @@ function GameBoard({ socket, gameState, playerId, gameCode, chatMessages, onLeav
     socket.on('resourcesReceived', handleResourcesReceived);
     return () => socket.off('resourcesReceived', handleResourcesReceived);
   }, [socket]);
+
+  // Listen for all resource distributions (public info - everyone sees who got what)
+  useEffect(() => {
+    const handleResourcesDistributed = ({ fromRoll, allGains }) => {
+      const resourceNames = { brick: '🧱', lumber: '🪵', wool: '🐑', grain: '🌾', ore: '⛏️' };
+      
+      allGains.forEach(({ playerName, playerId: gainPlayerId, gains }) => {
+        const gainsList = Object.entries(gains)
+          .filter(([_, amount]) => amount > 0)
+          .map(([resource, amount]) => `${resourceNames[resource]}${amount}`)
+          .join(' ');
+        
+        if (gainPlayerId === playerId) {
+          // Your own gains
+          addNotification(`🎲 You received: ${gainsList}`);
+        } else {
+          // Other player's gains
+          addNotification(`🎲 ${playerName} received: ${gainsList}`);
+        }
+      });
+    };
+    
+    socket.on('resourcesDistributed', handleResourcesDistributed);
+    return () => socket.off('resourcesDistributed', handleResourcesDistributed);
+  }, [socket, playerId, addNotification]);
 
   // Listen for steal notifications
   useEffect(() => {
@@ -205,18 +230,18 @@ function GameBoard({ socket, gameState, playerId, gameCode, chatMessages, onLeav
     }
   }, [gameState.turnPhase]);
 
-  // Handle dice roll notification (only once per unique roll)
+  // Handle dice roll notification (only for 7 - robber)
   useEffect(() => {
     if (gameState.diceRoll && gameState.turnPhase !== 'roll') {
       // Create unique key for this roll to prevent duplicate notifications
       const rollKey = `${gameState.diceRoll.dice1}-${gameState.diceRoll.dice2}-${gameState.currentPlayerIndex}`;
       
+      // Only notify for 7 (robber) - regular rolls are shown in the dice display
       if (rollKey !== lastNotifiedRoll && gameState.diceRoll.total === 7) {
         const roller = gameState.players[gameState.currentPlayerIndex];
-        addNotification(`${roller.name} rolled a 7! Move the robber.`);
+        addNotification(`⚠️ ${roller.name} rolled a 7! Move the robber.`);
         setLastNotifiedRoll(rollKey);
       } else if (rollKey !== lastNotifiedRoll) {
-        // Track non-7 rolls too to prevent re-triggering
         setLastNotifiedRoll(rollKey);
       }
     }
@@ -743,6 +768,7 @@ function GameBoard({ socket, gameState, playerId, gameCode, chatMessages, onLeav
       {gameState.phase === 'finished' && gameState.winner && (
         <Confetti 
           winner={gameState.players.find(p => p.id === gameState.winner)}
+          onBackToLobby={onLeaveGame}
         />
       )}
     </div>

@@ -339,7 +339,7 @@
   border-radius: 16px;
   padding: 1.5rem 2rem;
   text-align: center;
-  z-index: 100;
+  z-index: 10000;
   animation: resourcePopup 0.3s ease-out;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
 }

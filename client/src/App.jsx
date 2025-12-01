@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { io } from 'socket.io-client';
 import Lobby from './components/Lobby';
 import GameBoard from './components/GameBoard';
@@ -190,26 +191,31 @@ function App() {
   }
 
   return (
-    <div className="app">
-      <GameBoard 
-        socket={socket}
-        gameState={gameState}
-        playerId={playerId}
-        gameCode={gameCode}
-        chatMessages={chatMessages}
-        onLeaveGame={handleLeaveGame}
-        addNotification={addNotification}
-      />
-      
-      {/* Notifications */}
-      <div className="notifications">
-        {notifications.map(n => (
-          <div key={n.id} className="notification fade-in">
-            {n.message}
-          </div>
-        ))}
+    <>
+      <div className="app">
+        <GameBoard 
+          socket={socket}
+          gameState={gameState}
+          playerId={playerId}
+          gameCode={gameCode}
+          chatMessages={chatMessages}
+          onLeaveGame={handleLeaveGame}
+          addNotification={addNotification}
+        />
       </div>
-    </div>
+      
+      {/* Notifications - rendered via Portal directly to body to avoid CSS issues */}
+      {createPortal(
+        <div className="notifications">
+          {notifications.map(n => (
+            <div key={n.id} className="notification fade-in">
+              {n.message}
+            </div>
+          ))}
+        </div>,
+        document.body
+      )}
+    </>
   );
 }
 

@@ -631,7 +631,8 @@ export function createGame(gameId, hostPlayer, isExtended = false, enableSpecial
     tradeOffer: null,
     discardingPlayers: [],
     freeRoads: 0, // For road building card
-    yearOfPlentyPicks: 0 // For year of plenty card
+    yearOfPlentyPicks: 0, // For year of plenty card
+    devCardPlayedThisTurn: false // Can only play one dev card per turn
   };
 }
 
@@ -1240,6 +1241,11 @@ export function playDevCard(game, playerId, cardType, params = {}) {
     return { success: false, error: 'Not your turn' };
   }
   
+  // Can only play one dev card per turn
+  if (game.devCardPlayedThisTurn) {
+    return { success: false, error: 'You can only play one development card per turn' };
+  }
+  
   const player = game.players[playerIndex];
   
   // Can't play cards bought this turn (except VP which is auto-played)
@@ -1284,6 +1290,9 @@ export function playDevCard(game, playerId, cardType, params = {}) {
     case DEV_CARDS.VICTORY_POINT:
       return { success: false, error: 'Victory point cards cannot be played' };
   }
+  
+  // Mark that a dev card was played this turn
+  game.devCardPlayedThisTurn = true;
   
   return { success: true };
 }
@@ -1514,10 +1523,11 @@ export function endTurn(game, playerId) {
   player.developmentCards.push(...player.newDevCards);
   player.newDevCards = [];
   
-  // Cancel any pending trade
+  // Cancel any pending trade and reset turn-based flags
   game.tradeOffer = null;
   game.freeRoads = 0;
   game.yearOfPlentyPicks = 0;
+  game.devCardPlayedThisTurn = false;
   
   // In 5-6 player games, start Special Building Phase (if enabled)
   if (game.isExtended && game.players.length > 4 && game.enableSpecialBuild) {
