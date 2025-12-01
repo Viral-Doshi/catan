@@ -28,7 +28,22 @@ app.get('/health', (req, res) => {
     status: 'ok', 
     uptime: process.uptime(),
     activeGames: games.size,
+    maxGames: MAX_CONCURRENT_GAMES,
+    connectedPlayers: totalConnectedPlayers,
+    maxPlayers: MAX_TOTAL_PLAYERS,
     timestamp: new Date().toISOString()
+  });
+});
+
+// Server status endpoint for client to check capacity
+app.get('/status', (req, res) => {
+  const isAtCapacity = totalConnectedPlayers >= MAX_TOTAL_PLAYERS || games.size >= MAX_CONCURRENT_GAMES;
+  res.json({
+    available: !isAtCapacity,
+    players: totalConnectedPlayers,
+    maxPlayers: MAX_TOTAL_PLAYERS,
+    games: games.size,
+    maxGames: MAX_CONCURRENT_GAMES
   });
 });
 
@@ -48,6 +63,26 @@ const io = new Server(httpServer, {
 // Store games in memory
 const games = new Map();
 const playerSockets = new Map(); // socketId -> { gameId, playerId }
+
+// Connection limits for free tier
+const MAX_CONCURRENT_GAMES = 50;
+const MAX_TOTAL_PLAYERS = 200;
+let totalConnectedPlayers = 0;
+
+// Auto-cleanup stale games (older than 3 hours)
+setInterval(() => {
+  const threeHoursAgo = Date.now() - (3 * 60 * 60 * 1000);
+  let cleanedCount = 0;
+  games.forEach((game, id) => {
+    if (game.createdAt && game.createdAt < threeHoursAgo) {
+      games.delete(id);
+      cleanedCount++;
+    }
+  });
+  if (cleanedCount > 0) {
+    console.log(`Cleaned up ${cleanedCount} stale games. Active games: ${games.size}`);
+  }
+}, 30 * 60 * 1000); // Check every 30 minutes
 
 // Generate a short game code
 function generateGameCode() {
@@ -91,10 +126,32 @@ function broadcastToGame(gameId, event, data) {
 }
 
 io.on('connection', (socket) => {
-  console.log('Player connected:', socket.id);
+  // Check if server is at capacity
+  if (totalConnectedPlayers >= MAX_TOTAL_PLAYERS) {
+    console.log('Server at capacity, rejecting connection:', socket.id);
+    socket.emit('serverFull', { 
+      message: 'Server is at maximum capacity. Please try again in a few minutes.',
+      players: totalConnectedPlayers,
+      maxPlayers: MAX_TOTAL_PLAYERS
+    });
+    socket.disconnect(true);
+    return;
+  }
+  
+  totalConnectedPlayers++;
+  console.log(`Player connected: ${socket.id} (Total: ${totalConnectedPlayers}/${MAX_TOTAL_PLAYERS})`);
   
   // Create a new game
   socket.on('createGame', ({ playerName, isExtended = false, enableSpecialBuild = true }, callback) => {
+    // Check game limit
+    if (games.size >= MAX_CONCURRENT_GAMES) {
+      callback({ 
+        success: false, 
+        error: 'Server has reached maximum number of games. Please try again later.' 
+      });
+      return;
+    }
+    
     const gameCode = generateGameCode();
     const playerId = uuidv4();
     
@@ -102,6 +159,9 @@ io.on('connection', (socket) => {
       id: playerId,
       name: playerName
     }, isExtended, enableSpecialBuild);
+    
+    // Add timestamp for cleanup
+    game.createdAt = Date.now();
     
     games.set(gameCode, game);
     playerSockets.set(socket.id, { gameId: gameCode, playerId });
@@ -666,6 +726,8 @@ io.on('connection', (socket) => {
   
   // Disconnect
   socket.on('disconnect', () => {
+    totalConnectedPlayers = Math.max(0, totalConnectedPlayers - 1);
+    
     const playerInfo = playerSockets.get(socket.id);
     
     if (playerInfo) {
@@ -682,7 +744,7 @@ io.on('connection', (socket) => {
       playerSockets.delete(socket.id);
     }
     
-    console.log('Player disconnected:', socket.id);
+    console.log(`Player disconnected: ${socket.id} (Total: ${totalConnectedPlayers}/${MAX_TOTAL_PLAYERS})`);
   });
   
   // Reconnect to game

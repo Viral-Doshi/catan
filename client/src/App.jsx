@@ -19,6 +19,7 @@ function App() {
   const [error, setError] = useState(null);
   const [chatMessages, setChatMessages] = useState([]);
   const [notifications, setNotifications] = useState([]);
+  const [serverFull, setServerFull] = useState(false);
 
   useEffect(() => {
     const newSocket = io(SERVER_URL);
@@ -26,6 +27,7 @@ function App() {
     newSocket.on('connect', () => {
       console.log('Connected to server');
       setConnected(true);
+      setServerFull(false);
       
       // Try to reconnect to existing game
       const savedGame = localStorage.getItem('catanGame');
@@ -45,6 +47,12 @@ function App() {
     
     newSocket.on('disconnect', () => {
       console.log('Disconnected from server');
+      setConnected(false);
+    });
+    
+    newSocket.on('serverFull', ({ message }) => {
+      console.log('Server is full:', message);
+      setServerFull(true);
       setConnected(false);
     });
     
@@ -166,6 +174,26 @@ function App() {
     setChatMessages([]);
     localStorage.removeItem('catanGame');
   }, []);
+
+  if (serverFull) {
+    return (
+      <div className="loading-screen server-full">
+        <div className="loading-content">
+          <h1>CATAN</h1>
+          <div className="server-full-icon">🏰</div>
+          <h2>Server at Capacity</h2>
+          <p>Too many players are currently online!</p>
+          <p className="server-full-hint">Please try again in a few minutes.</p>
+          <button 
+            className="retry-btn"
+            onClick={() => window.location.reload()}
+          >
+            🔄 Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (!connected) {
     return (
