@@ -1,3 +1,21 @@
+/**
+ * ============================================================================
+ * CATAN GAME SERVER
+ * ============================================================================
+ * 
+ * Express + Socket.io server for multiplayer Catan game.
+ * Handles real-time game communication, session management, and game state.
+ * 
+ * Features:
+ * - WebSocket-based real-time multiplayer
+ * - Game room management with 6-character codes
+ * - Automatic cleanup of stale games
+ * - Connection limits for free tier hosting
+ * - Keep-alive ping endpoint for Render free tier
+ * 
+ * @author Viral Doshi
+ */
+
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
@@ -5,11 +23,19 @@ import cors from 'cors';
 import { v4 as uuidv4 } from 'uuid';
 import * as GameLogic from './gameLogic.js';
 
+// ============================================================================
+// EXPRESS APP SETUP
+// ============================================================================
+
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Health check and info routes
+// ============================================================================
+// HTTP ENDPOINTS
+// ============================================================================
+
+/** Server info and health check */
 app.get('/', (req, res) => {
   res.json({
     name: 'Catan Game Server',
@@ -23,6 +49,7 @@ app.get('/', (req, res) => {
   });
 });
 
+/** Detailed health check with server stats */
 app.get('/health', (req, res) => {
   res.json({ 
     status: 'ok', 
@@ -35,7 +62,7 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Server status endpoint for client to check capacity
+/** Status endpoint for client to check if server has capacity */
 app.get('/status', (req, res) => {
   const isAtCapacity = totalConnectedPlayers >= MAX_TOTAL_PLAYERS || games.size >= MAX_CONCURRENT_GAMES;
   res.json({
@@ -47,10 +74,14 @@ app.get('/status', (req, res) => {
   });
 });
 
-// Keep-alive ping endpoint (lightweight)
+/** Lightweight keep-alive ping (prevents Render free tier from sleeping) */
 app.get('/ping', (req, res) => {
   res.send('pong');
 });
+
+// ============================================================================
+// SOCKET.IO SETUP
+// ============================================================================
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
@@ -60,16 +91,26 @@ const io = new Server(httpServer, {
   }
 });
 
-// Store games in memory
-const games = new Map();
-const playerSockets = new Map(); // socketId -> { gameId, playerId }
+// ============================================================================
+// IN-MEMORY STATE
+// ============================================================================
 
-// Connection limits for free tier
+/** Map of gameCode -> game state object */
+const games = new Map();
+
+/** Map of socketId -> { gameId, playerId } for tracking player connections */
+const playerSockets = new Map();
+
+// Connection limits for free tier hosting (Render, Heroku, etc.)
 const MAX_CONCURRENT_GAMES = 50;
 const MAX_TOTAL_PLAYERS = 200;
 let totalConnectedPlayers = 0;
 
-// Auto-cleanup stale games (older than 3 hours)
+// ============================================================================
+// AUTOMATIC CLEANUP
+// ============================================================================
+
+/** Clean up games that have been idle for 3+ hours */
 setInterval(() => {
   const threeHoursAgo = Date.now() - (3 * 60 * 60 * 1000);
   let cleanedCount = 0;
@@ -84,7 +125,11 @@ setInterval(() => {
   }
 }, 30 * 60 * 1000); // Check every 30 minutes
 
-// Generate a short game code
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+/** Generate a 6-character alphanumeric game code (excludes ambiguous chars like 0/O, 1/I) */
 function generateGameCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let code = '';
@@ -94,7 +139,7 @@ function generateGameCode() {
   return code;
 }
 
-// Broadcast game state to all players
+/** Send player-specific game state to each player in a game */
 function broadcastGameState(gameId) {
   const game = games.get(gameId);
   if (!game) return;
@@ -110,7 +155,7 @@ function broadcastGameState(gameId) {
   });
 }
 
-// Broadcast to all players in a game
+/** Broadcast an event to all players in a game (same data to everyone) */
 function broadcastToGame(gameId, event, data) {
   const game = games.get(gameId);
   if (!game) return;
@@ -125,7 +170,15 @@ function broadcastToGame(gameId, event, data) {
   });
 }
 
+// ============================================================================
+// SOCKET.IO EVENT HANDLERS
+// ============================================================================
+
 io.on('connection', (socket) => {
+  // --------------------------------------------------------------------
+  // CONNECTION MANAGEMENT
+  // --------------------------------------------------------------------
+  
   // Check if server is at capacity
   if (totalConnectedPlayers >= MAX_TOTAL_PLAYERS) {
     console.log('Server at capacity, rejecting connection:', socket.id);
@@ -141,7 +194,11 @@ io.on('connection', (socket) => {
   totalConnectedPlayers++;
   console.log(`Player connected: ${socket.id} (Total: ${totalConnectedPlayers}/${MAX_TOTAL_PLAYERS})`);
   
-  // Create a new game
+  // --------------------------------------------------------------------
+  // GAME CREATION AND JOINING
+  // --------------------------------------------------------------------
+  
+  /** Create a new game room as the host */
   socket.on('createGame', ({ playerName, isExtended = false, enableSpecialBuild = true }, callback) => {
     // Check game limit
     if (games.size >= MAX_CONCURRENT_GAMES) {
@@ -177,7 +234,7 @@ io.on('connection', (socket) => {
     });
   });
   
-  // Join an existing game
+  /** Join an existing game room using a game code */
   socket.on('joinGame', ({ gameCode, playerName }, callback) => {
     const game = games.get(gameCode.toUpperCase());
     
@@ -211,7 +268,11 @@ io.on('connection', (socket) => {
     broadcastGameState(gameCode.toUpperCase());
   });
   
-  // Start the game
+  // --------------------------------------------------------------------
+  // GAME FLOW CONTROLS
+  // --------------------------------------------------------------------
+  
+  /** Start the game (host only) - randomizes player order and begins setup */
   socket.on('startGame', (callback) => {
     const playerInfo = playerSockets.get(socket.id);
     if (!playerInfo) {
@@ -243,7 +304,7 @@ io.on('connection', (socket) => {
     callback(result);
   });
   
-  // Shuffle board (before game starts)
+  /** Shuffle the board layout (host only, before game starts) */
   socket.on('shuffleBoard', (callback) => {
     const playerInfo = playerSockets.get(socket.id);
     if (!playerInfo) {
@@ -273,7 +334,11 @@ io.on('connection', (socket) => {
     callback(result);
   });
   
-  // Roll dice
+  // --------------------------------------------------------------------
+  // TURN ACTIONS
+  // --------------------------------------------------------------------
+  
+  /** Roll dice at start of turn - distributes resources or triggers robber */
   socket.on('rollDice', (callback) => {
     const playerInfo = playerSockets.get(socket.id);
     if (!playerInfo) {
@@ -338,7 +403,7 @@ io.on('connection', (socket) => {
     callback(result);
   });
   
-  // Discard cards (when 7 is rolled)
+  /** Discard cards when a 7 is rolled (for players with >7 cards) */
   socket.on('discardCards', ({ resources }, callback) => {
     const playerInfo = playerSockets.get(socket.id);
     if (!playerInfo) {
@@ -356,7 +421,7 @@ io.on('connection', (socket) => {
     callback(result);
   });
   
-  // Move robber
+  /** Move robber and optionally steal from a player */
   socket.on('moveRobber', ({ hexKey, stealFromPlayerId }, callback) => {
     const playerInfo = playerSockets.get(socket.id);
     if (!playerInfo) {
@@ -403,7 +468,11 @@ io.on('connection', (socket) => {
     callback(result);
   });
   
-  // Place settlement
+  // --------------------------------------------------------------------
+  // BUILDING ACTIONS
+  // --------------------------------------------------------------------
+  
+  /** Place a settlement on a vertex */
   socket.on('placeSettlement', ({ vertexKey, isSetup }, callback) => {
     const playerInfo = playerSockets.get(socket.id);
     if (!playerInfo) {
@@ -425,7 +494,7 @@ io.on('connection', (socket) => {
     callback(result);
   });
   
-  // Place road
+  /** Place a road on an edge */
   socket.on('placeRoad', ({ edgeKey, isSetup, lastSettlement }, callback) => {
     const playerInfo = playerSockets.get(socket.id);
     if (!playerInfo) {
@@ -447,7 +516,7 @@ io.on('connection', (socket) => {
     callback(result);
   });
   
-  // Upgrade to city
+  /** Upgrade an existing settlement to a city */
   socket.on('upgradeToCity', ({ vertexKey }, callback) => {
     const playerInfo = playerSockets.get(socket.id);
     if (!playerInfo) {
@@ -469,7 +538,11 @@ io.on('connection', (socket) => {
     callback(result);
   });
   
-  // Buy development card
+  // --------------------------------------------------------------------
+  // DEVELOPMENT CARDS
+  // --------------------------------------------------------------------
+  
+  /** Buy a development card from the deck */
   socket.on('buyDevCard', (callback) => {
     const playerInfo = playerSockets.get(socket.id);
     if (!playerInfo) {
@@ -487,7 +560,7 @@ io.on('connection', (socket) => {
     callback(result);
   });
   
-  // Play development card
+  /** Play a development card */
   socket.on('playDevCard', ({ cardType, params }, callback) => {
     const playerInfo = playerSockets.get(socket.id);
     if (!playerInfo) {
@@ -509,7 +582,7 @@ io.on('connection', (socket) => {
     callback(result);
   });
   
-  // Year of Plenty pick
+  /** Pick a resource for Year of Plenty card */
   socket.on('yearOfPlentyPick', ({ resource }, callback) => {
     const playerInfo = playerSockets.get(socket.id);
     if (!playerInfo) {
@@ -527,7 +600,11 @@ io.on('connection', (socket) => {
     callback(result);
   });
   
-  // Bank trade (with port ratios)
+  // --------------------------------------------------------------------
+  // TRADING
+  // --------------------------------------------------------------------
+  
+  /** Trade with the bank (uses port ratios if available) */
   socket.on('bankTrade', ({ giveResource, giveAmount, getResource }, callback) => {
     const playerInfo = playerSockets.get(socket.id);
     if (!playerInfo) {
@@ -545,7 +622,7 @@ io.on('connection', (socket) => {
     callback(result);
   });
   
-  // Propose trade
+  /** Propose a trade to other players */
   socket.on('proposeTrade', ({ offer, request }, callback) => {
     const playerInfo = playerSockets.get(socket.id);
     if (!playerInfo) {
@@ -568,7 +645,7 @@ io.on('connection', (socket) => {
     callback(result);
   });
   
-  // Respond to trade
+  /** Accept or decline a trade offer */
   socket.on('respondToTrade', ({ accept }, callback) => {
     const playerInfo = playerSockets.get(socket.id);
     if (!playerInfo) {
@@ -595,7 +672,7 @@ io.on('connection', (socket) => {
     callback(result);
   });
   
-  // Cancel trade
+  /** Cancel an active trade offer */
   socket.on('cancelTrade', (callback) => {
     const playerInfo = playerSockets.get(socket.id);
     if (!playerInfo) {
@@ -614,7 +691,11 @@ io.on('connection', (socket) => {
     callback(result);
   });
   
-  // Advance setup (after placing settlement + road)
+  // --------------------------------------------------------------------
+  // TURN MANAGEMENT
+  // --------------------------------------------------------------------
+  
+  /** Advance to next player during setup phase */
   socket.on('advanceSetup', (callback) => {
     const playerInfo = playerSockets.get(socket.id);
     if (!playerInfo) {
@@ -632,7 +713,7 @@ io.on('connection', (socket) => {
     callback(result);
   });
   
-  // End turn
+  /** End the current player's turn */
   socket.on('endTurn', (callback) => {
     const playerInfo = playerSockets.get(socket.id);
     if (!playerInfo) {
@@ -658,7 +739,7 @@ io.on('connection', (socket) => {
     callback(result);
   });
   
-  // End special building phase (5-6 player extension)
+  /** End special building phase for current player (5-6 player games) */
   socket.on('endSpecialBuild', (callback) => {
     const playerInfo = playerSockets.get(socket.id);
     if (!playerInfo) {
@@ -684,7 +765,11 @@ io.on('connection', (socket) => {
     callback(result);
   });
   
-  // Get players on hex (for robber)
+  // --------------------------------------------------------------------
+  // UTILITY QUERIES
+  // --------------------------------------------------------------------
+  
+  /** Get list of players with buildings on a hex (for robber stealing) */
   socket.on('getPlayersOnHex', ({ hexKey }, callback) => {
     const playerInfo = playerSockets.get(socket.id);
     if (!playerInfo) {
@@ -705,7 +790,11 @@ io.on('connection', (socket) => {
     callback({ success: true, players });
   });
   
-  // Chat message
+  // --------------------------------------------------------------------
+  // CHAT
+  // --------------------------------------------------------------------
+  
+  /** Broadcast a chat message to all players in the game */
   socket.on('chatMessage', ({ message }) => {
     const playerInfo = playerSockets.get(socket.id);
     if (!playerInfo) return;
@@ -724,7 +813,11 @@ io.on('connection', (socket) => {
     });
   });
   
-  // Disconnect
+  // --------------------------------------------------------------------
+  // CONNECTION LIFECYCLE
+  // --------------------------------------------------------------------
+  
+  /** Handle player disconnection */
   socket.on('disconnect', () => {
     totalConnectedPlayers = Math.max(0, totalConnectedPlayers - 1);
     
@@ -747,7 +840,7 @@ io.on('connection', (socket) => {
     console.log(`Player disconnected: ${socket.id} (Total: ${totalConnectedPlayers}/${MAX_TOTAL_PLAYERS})`);
   });
   
-  // Reconnect to game
+  /** Reconnect to an existing game (e.g., after page refresh) */
   socket.on('reconnect', ({ gameCode, playerId }, callback) => {
     const game = games.get(gameCode);
     
@@ -781,6 +874,10 @@ io.on('connection', (socket) => {
     broadcastToGame(gameCode, 'playerReconnected', { playerName: player.name });
   });
 });
+
+// ============================================================================
+// SERVER STARTUP
+// ============================================================================
 
 const PORT = process.env.PORT || 3001;
 httpServer.listen(PORT, () => {

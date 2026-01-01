@@ -1,6 +1,39 @@
-// Catan Game Logic Engine
+/**
+ * ============================================================================
+ * CATAN GAME LOGIC ENGINE
+ * ============================================================================
+ * 
+ * This module contains the complete game logic for a digital implementation 
+ * of the Settlers of Catan board game. It handles:
+ * 
+ * - Board generation with hexagonal tiles using axial coordinates
+ * - Player management and turn flow
+ * - Resource distribution based on dice rolls
+ * - Building placement (settlements, cities, roads)
+ * - Development cards and special actions
+ * - Trading (bank trades with port ratios, player-to-player trades)
+ * - Victory conditions (10 victory points to win)
+ * - Special achievements (Longest Road, Largest Army)
+ * 
+ * COORDINATE SYSTEM:
+ * - Uses axial coordinates (q, r) for hexagonal grid
+ * - POINTY-TOP hex orientation
+ * - Vertices numbered 0-5 clockwise from top: 0=top, 1=upper-right, 2=lower-right, 3=bottom, 4=lower-left, 5=upper-left
+ * - Edges numbered 0-5 clockwise: 0=upper-right, 1=right, 2=lower-right, 3=lower-left, 4=left, 5=upper-left
+ * 
+ * KEY CONCEPTS:
+ * - Equivalent vertices/edges: Same physical position can have different key representations
+ * - Each vertex is shared by exactly 3 hexes
+ * - Each edge is shared by exactly 2 hexes
+ * 
+ * @author Viral Doshi
+ */
 
-// Resource types
+// ============================================================================
+// CONSTANTS AND CONFIGURATION
+// ============================================================================
+
+/** Available resource types in the game */
 export const RESOURCES = {
   BRICK: 'brick',
   LUMBER: 'lumber',
@@ -9,7 +42,10 @@ export const RESOURCES = {
   ORE: 'ore'
 };
 
-// Terrain types and their resources
+/** 
+ * Terrain types mapped to their produced resources and display colors
+ * Desert produces no resources and is where the robber starts
+ */
 export const TERRAIN = {
   HILLS: { name: 'hills', resource: RESOURCES.BRICK, color: '#c45a2c' },
   FOREST: { name: 'forest', resource: RESOURCES.LUMBER, color: '#2d5a27' },
@@ -19,7 +55,7 @@ export const TERRAIN = {
   DESERT: { name: 'desert', resource: null, color: '#e8d5a3' }
 };
 
-// Building costs
+/** Resource costs for each building/purchase type */
 export const BUILDING_COSTS = {
   road: { brick: 1, lumber: 1 },
   settlement: { brick: 1, lumber: 1, wool: 1, grain: 1 },
@@ -27,7 +63,7 @@ export const BUILDING_COSTS = {
   developmentCard: { ore: 1, grain: 1, wool: 1 }
 };
 
-// Development card types
+/** Types of development cards available */
 export const DEV_CARDS = {
   KNIGHT: 'knight',
   VICTORY_POINT: 'victoryPoint',
@@ -36,7 +72,10 @@ export const DEV_CARDS = {
   MONOPOLY: 'monopoly'
 };
 
-// Development card distribution (25 total)
+/** 
+ * Development card distribution (25 total for standard game)
+ * 14 Knights, 5 Victory Points, 2 each of Road Building/Year of Plenty/Monopoly
+ */
 const DEV_CARD_DISTRIBUTION = [
   ...Array(14).fill(DEV_CARDS.KNIGHT),
   ...Array(5).fill(DEV_CARDS.VICTORY_POINT),
@@ -45,10 +84,17 @@ const DEV_CARD_DISTRIBUTION = [
   ...Array(2).fill(DEV_CARDS.MONOPOLY)
 ];
 
-// Player colors (6 players supported)
+/** Player colors: Red, Blue, Orange, Teal, Green, Purple (supports up to 6 players) */
 export const PLAYER_COLORS = ['#e63946', '#457b9d', '#f4a261', '#2a9d8f', '#6a994e', '#9d4edd'];
 
-// Standard hex positions for 3-4 player game (axial coordinates)
+// ============================================================================
+// BOARD LAYOUT CONFIGURATION
+// ============================================================================
+
+/** 
+ * Standard hex positions for 3-4 player game (19 hexes)
+ * Uses axial coordinates (q, r) in a hexagonal pattern
+ */
 const HEX_POSITIONS_STANDARD = [
   // Row 1 (top) - 3 hexes
   { q: 0, r: -2 }, { q: 1, r: -2 }, { q: 2, r: -2 },
@@ -62,7 +108,10 @@ const HEX_POSITIONS_STANDARD = [
   { q: -2, r: 2 }, { q: -1, r: 2 }, { q: 0, r: 2 }
 ];
 
-// 5-6 player expanded hex positions (30 hexes total: 3+4+5+6+5+4+3)
+/** 
+ * 5-6 player expansion hex positions (30 hexes total)
+ * Larger board arranged as: 3+4+5+6+5+4+3 hexes per row
+ */
 const HEX_POSITIONS_EXTENDED = [
   // Row 1 (top) - 3 hexes
   { q: 0, r: -3 }, { q: 1, r: -3 }, { q: 2, r: -3 },
@@ -109,7 +158,14 @@ const NUMBER_TOKENS_EXTENDED = [
   8, 8, 8, 9, 9, 9, 10, 10, 10, 11, 11, 11, 12, 12
 ];
 
-// Port types
+// ============================================================================
+// PORT CONFIGURATION
+// ============================================================================
+
+/** 
+ * Port types with their trade ratios
+ * Generic ports: 3:1 any resource, Specific ports: 2:1 for that resource
+ */
 export const PORT_TYPES = {
   GENERIC: { ratio: 3, resource: null, name: '3:1 Port', icon: '⚓' },
   BRICK: { ratio: 2, resource: 'brick', name: 'Brick Port', icon: '🧱' },
@@ -156,7 +212,11 @@ const PORT_POSITIONS_EXTENDED = [
   { vertices: ['v_-3_0_4', 'v_-3_0_5'], type: 'GENERIC' }
 ];
 
-// Shuffle array helper
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+
+/** Fisher-Yates shuffle algorithm - returns a new shuffled array */
 function shuffle(array) {
   const shuffled = [...array];
   for (let i = shuffled.length - 1; i > 0; i--) {
@@ -166,23 +226,43 @@ function shuffle(array) {
   return shuffled;
 }
 
-// Generate hex key
+// ============================================================================
+// KEY GENERATION FUNCTIONS
+// ============================================================================
+
+/** Generate a unique key for a hex tile at axial coordinates (q, r) */
 export function hexKey(q, r) {
   return `${q},${r}`;
 }
 
-// Generate vertex key (vertices are corners of hexes)
+/** 
+ * Generate a unique key for a vertex (corner of a hex)
+ * @param hexQ - Q coordinate of the reference hex
+ * @param hexR - R coordinate of the reference hex  
+ * @param direction - Vertex position (0-5, clockwise from top)
+ */
 export function vertexKey(hexQ, hexR, direction) {
   return `v_${hexQ}_${hexR}_${direction}`;
 }
 
-// Generate edge key
+/** 
+ * Generate a unique key for an edge (side of a hex)
+ * @param hexQ - Q coordinate of the reference hex
+ * @param hexR - R coordinate of the reference hex
+ * @param direction - Edge position (0-5, clockwise from upper-right)
+ */
 export function edgeKey(hexQ, hexR, direction) {
   return `e_${hexQ}_${hexR}_${direction}`;
 }
 
-// Get vertices adjacent to a hex
-// POINTY-TOP orientation: 0=top, 1=upper-right, 2=lower-right, 3=bottom, 4=lower-left, 5=upper-left
+// ============================================================================
+// COORDINATE SYSTEM - VERTEX AND EDGE RELATIONSHIPS
+// ============================================================================
+
+/** 
+ * Get all 6 vertices of a hex tile
+ * POINTY-TOP orientation: 0=top, 1=upper-right, 2=lower-right, 3=bottom, 4=lower-left, 5=upper-left
+ */
 export function getHexVertices(q, r) {
   return [
     vertexKey(q, r, 0), // top
@@ -194,7 +274,10 @@ export function getHexVertices(q, r) {
   ];
 }
 
-// Get normalized vertex (vertices shared between hexes map to same key)
+/** 
+ * Normalize a vertex to its canonical key representation
+ * Since vertices are shared by 3 hexes, this ensures consistent lookups
+ */
 export function normalizeVertex(hexQ, hexR, dir, hexes) {
   // Canonical form: use smallest hex coordinates
   const candidates = getEquivalentVertices(hexQ, hexR, dir);
@@ -206,9 +289,22 @@ export function normalizeVertex(hexQ, hexR, dir, hexes) {
   return vertexKey(hexQ, hexR, dir);
 }
 
-// Get equivalent vertex positions for POINTY-TOP hex
-// Each vertex is shared by exactly 3 hexes
-// VERIFIED BY PIXEL POSITION CALCULATIONS
+/** 
+ * Get all equivalent representations of a vertex position
+ * 
+ * IMPORTANT: Each physical vertex is shared by exactly 3 hexes, so it can be 
+ * referenced using 3 different (hex, direction) combinations.
+ * 
+ * This function returns all 3 equivalent representations for a given vertex,
+ * enabling proper collision detection and connectivity checks.
+ * 
+ * Verified by pixel position calculations to ensure geometric accuracy.
+ * 
+ * @param q - Q coordinate of hex
+ * @param r - R coordinate of hex
+ * @param dir - Vertex direction (0-5)
+ * @returns Array of equivalent vertex representations {q, r, dir}
+ */
 function getEquivalentVertices(q, r, dir) {
   const equivalents = [
     { q, r, dir }
@@ -238,7 +334,10 @@ function getEquivalentVertices(q, r, dir) {
   return equivalents;
 }
 
-// Check if two vertex keys refer to the same physical vertex position
+/** 
+ * Check if two vertex keys refer to the same physical vertex position
+ * Handles the case where same vertex is referenced from different hexes
+ */
 export function areVerticesEqual(vKey1, vKey2) {
   if (vKey1 === vKey2) return true;
   
@@ -254,7 +353,14 @@ export function areVerticesEqual(vKey1, vKey2) {
   return equivalents.some(eq => eq.q === q2 && eq.r === r2 && eq.dir === dir2);
 }
 
-// Check if a player has a building at a vertex (checking all equivalent vertex keys)
+// ============================================================================
+// BUILDING AND ROAD LOOKUP FUNCTIONS
+// ============================================================================
+
+/** 
+ * Check if a specific player has a building at a vertex
+ * Checks all equivalent vertex keys to handle shared vertices
+ */
 function hasPlayerBuildingAtVertex(game, vKey, playerIndex) {
   const match = vKey.match(/v_(-?\d+)_(-?\d+)_(\d+)/);
   if (!match) return false;
@@ -273,7 +379,7 @@ function hasPlayerBuildingAtVertex(game, vKey, playerIndex) {
   return false;
 }
 
-// Check if ANY building exists at a vertex (checking all equivalent keys)
+/** Check if ANY building exists at a vertex (for distance rule validation) */
 function hasBuildingAtVertex(game, vKey) {
   const match = vKey.match(/v_(-?\d+)_(-?\d+)_(\d+)/);
   if (!match) return false;
@@ -292,8 +398,17 @@ function hasBuildingAtVertex(game, vKey) {
   return false;
 }
 
-// Calculate pixel position for a vertex (same formula as client)
-const HEX_SIZE = 50;
+// ============================================================================
+// GEOMETRY CALCULATIONS (for physical position verification)
+// ============================================================================
+
+const HEX_SIZE = 50; // Base hex size for calculations
+
+/** 
+ * Calculate pixel position for a vertex
+ * Used for verifying vertex equivalence and adjacency via actual geometric positions
+ * Must match the client-side rendering formula
+ */
 function getVertexPixelPosition(q, r, dir) {
   // Axial to pixel (pointy-top)
   const centerX = HEX_SIZE * Math.sqrt(3) * (q + r / 2);
@@ -309,7 +424,10 @@ function getVertexPixelPosition(q, r, dir) {
   };
 }
 
-// Check if two vertices are physically adjacent (share an edge)
+/** 
+ * Check if two vertices are physically adjacent (share an edge)
+ * Uses pixel positions to verify - adjacent vertices are exactly HEX_SIZE apart
+ */
 function areVerticesAdjacent(vKey1, vKey2) {
   const match1 = vKey1.match(/v_(-?\d+)_(-?\d+)_(\d+)/);
   const match2 = vKey2.match(/v_(-?\d+)_(-?\d+)_(\d+)/);
@@ -332,7 +450,10 @@ function areVerticesAdjacent(vKey1, vKey2) {
   return Math.abs(distance - HEX_SIZE) < 1;
 }
 
-// Check if any building is adjacent to a vertex position
+/** 
+ * Check if any building is adjacent to a vertex (for distance rule)
+ * Catan rules require settlements to be at least 2 edges apart
+ */
 function hasAdjacentBuilding(game, vKey) {
   // Get all vertices with buildings
   for (const [otherKey, vertex] of Object.entries(game.vertices)) {
@@ -350,7 +471,7 @@ function hasAdjacentBuilding(game, vKey) {
   return false;
 }
 
-// Check if two vertex keys refer to the same physical position
+/** Check if two vertex keys refer to the same physical position using pixel coordinates */
 function areVerticesAtSamePosition(vKey1, vKey2) {
   const match1 = vKey1.match(/v_(-?\d+)_(-?\d+)_(\d+)/);
   const match2 = vKey2.match(/v_(-?\d+)_(-?\d+)_(\d+)/);
@@ -371,8 +492,11 @@ function areVerticesAtSamePosition(vKey1, vKey2) {
   return distance < 1;
 }
 
-// Find a building at a hex vertex, checking all equivalent vertex keys
-// Returns building info including the actual vertex key where it was found
+/** 
+ * Find a building at a hex vertex, checking all equivalent vertex keys
+ * Returns building info including the actual vertex key where it was found
+ * Used for resource distribution to find all adjacent buildings
+ */
 function findBuildingAtHexVertex(game, q, r, dir) {
   const equivalents = getEquivalentVertices(q, r, dir);
   
@@ -386,8 +510,10 @@ function findBuildingAtHexVertex(game, q, r, dir) {
   return null;
 }
 
-// Get equivalent edge positions for POINTY-TOP hex
-// Each edge is shared by exactly 2 hexes
+/** 
+ * Get all equivalent representations of an edge position
+ * Each edge is shared by exactly 2 hexes, so it has 2 different key representations
+ */
 export function getEquivalentEdges(q, r, dir) {
   const equivalents = [{ q, r, dir }];
   
@@ -409,7 +535,10 @@ export function getEquivalentEdges(q, r, dir) {
   return equivalents;
 }
 
-// Check if a road exists at an edge (checking all equivalent edge keys)
+/** 
+ * Check if a road exists at an edge (checking all equivalent edge keys)
+ * Returns road info if found, null otherwise
+ */
 function hasRoadAtEdge(game, eKey) {
   const match = eKey.match(/e_(-?\d+)_(-?\d+)_(\d+)/);
   if (!match) return null;
@@ -427,16 +556,22 @@ function hasRoadAtEdge(game, eKey) {
   return null;
 }
 
-// Check if a player has a road at an edge (checking all equivalent edge keys)
+/** Check if a specific player has a road at an edge */
 function hasPlayerRoadAtEdge(game, eKey, playerIndex) {
   const roadInfo = hasRoadAtEdge(game, eKey);
   return roadInfo && roadInfo.owner === playerIndex;
 }
 
-// Get edges adjacent to a vertex for POINTY-TOP hex (from one hex's perspective)
-// Edge direction: 0=upper-right, 1=right, 2=lower-right, 3=lower-left, 4=left, 5=upper-left
-// VERIFIED BY ALGEBRAIC EDGE EQUIVALENCE CALCULATIONS
-// NOTE: Third edge is the unique edge from neighboring hexes (not equivalent to the first two)
+/** 
+ * Get the 3 edges touching a vertex from one hex's perspective
+ * 
+ * Each vertex has exactly 3 edges. From a single hex, we can identify:
+ * - 2 edges on this hex
+ * - 1 edge on a neighboring hex (the "third unique edge")
+ * 
+ * Edge direction: 0=upper-right, 1=right, 2=lower-right, 3=lower-left, 4=left, 5=upper-left
+ * Verified by algebraic edge equivalence calculations.
+ */
 function getVertexEdgesFromHex(q, r, dir) {
   const edges = [];
   
@@ -472,7 +607,10 @@ function getVertexEdgesFromHex(q, r, dir) {
   return edges;
 }
 
-// Get ALL edges adjacent to a vertex by checking all equivalent vertices
+/** 
+ * Get ALL edges adjacent to a vertex (exactly 3 edges per vertex)
+ * Aggregates edges from all equivalent vertex representations and deduplicates
+ */
 export function getVertexEdges(vKey) {
   const match = vKey.match(/v_(-?\d+)_(-?\d+)_(\d+)/);
   if (!match) return [];
@@ -511,10 +649,16 @@ export function getVertexEdges(vKey) {
   return Array.from(canonicalEdges.values());
 }
 
-// Get adjacent vertices (for distance rule) for POINTY-TOP hex
-// VERIFIED BY PIXEL POSITION CALCULATIONS AND EDGE CONNECTIVITY
-// Each vertex has 3 adjacent vertices: 2 on same hex (nextDir, prevDir) + 1 on neighboring hex
-// The third adjacent is at the OTHER END of the third edge (the unique edge from a neighbor hex)
+/** 
+ * Get all adjacent vertices (connected by an edge)
+ * 
+ * Each vertex has exactly 3 adjacent vertices:
+ * - 2 on the same hex (directions +1 and -1)
+ * - 1 on a neighboring hex (at the other end of the third edge)
+ * 
+ * Used for the distance rule check during settlement placement.
+ * Verified by pixel position calculations and edge connectivity.
+ */
 export function getAdjacentVertices(vKey, hexes) {
   const match = vKey.match(/v_(-?\d+)_(-?\d+)_(\d+)/);
   if (!match) return [];
@@ -554,7 +698,19 @@ export function getAdjacentVertices(vKey, hexes) {
   return adjacent;
 }
 
-// Create initial game state
+// ============================================================================
+// GAME STATE MANAGEMENT
+// ============================================================================
+
+/** 
+ * Create a new game with initial state
+ * 
+ * @param gameId - Unique game identifier (usually a 6-char code)
+ * @param hostPlayer - Player object {id, name} for the host
+ * @param isExtended - Whether to use 5-6 player expansion board
+ * @param enableSpecialBuild - Whether to enable special building phase (5-6 player rule)
+ * @returns Complete game state object
+ */
 export function createGame(gameId, hostPlayer, isExtended = false, enableSpecialBuild = true) {
   // Select board configuration based on game mode
   const HEX_POSITIONS = isExtended ? HEX_POSITIONS_EXTENDED : HEX_POSITIONS_STANDARD;
@@ -671,7 +827,7 @@ export function createGame(gameId, hostPlayer, isExtended = false, enableSpecial
   };
 }
 
-// Add player to game
+/** Add a player to an existing game (before game starts) */
 export function addPlayer(game, player) {
   const maxPlayers = game.maxPlayers || 4;
   if (game.players.length >= maxPlayers) {
@@ -704,7 +860,10 @@ export function addPlayer(game, player) {
   return { success: true };
 }
 
-// Start the game
+/** 
+ * Start the game - randomizes player order and begins setup phase
+ * Requires at least 2 players
+ */
 export function startGame(game) {
   if (game.players.length < 2) {
     return { success: false, error: 'Need at least 2 players' };
@@ -733,7 +892,7 @@ export function startGame(game) {
   return { success: true, turnOrder: game.players.map(p => ({ id: p.id, name: p.name, turnOrder: p.turnOrder })) };
 }
 
-// Shuffle the board (regenerate terrain and numbers)
+/** Shuffle the board layout - only allowed before game starts */
 export function shuffleBoard(game) {
   if (game.phase !== 'waiting') {
     return { success: false, error: 'Can only shuffle before game starts' };
@@ -774,7 +933,15 @@ export function shuffleBoard(game) {
   return { success: true };
 }
 
-// Roll dice
+// ============================================================================
+// TURN ACTIONS
+// ============================================================================
+
+/** 
+ * Roll dice at the start of a turn
+ * - Rolling 7 triggers discard phase (if anyone has >7 cards) then robber movement
+ * - Other numbers distribute resources to players with adjacent buildings
+ */
 export function rollDice(game, playerId) {
   const player = game.players[game.currentPlayerIndex];
   
@@ -821,7 +988,18 @@ export function rollDice(game, playerId) {
   }
 }
 
-// Distribute resources based on dice roll - returns what each player received
+/** 
+ * Distribute resources based on dice roll
+ * 
+ * For each hex with matching number (not blocked by robber):
+ * - Find all buildings on adjacent vertices
+ * - Give 1 resource per settlement, 2 per city
+ * 
+ * IMPORTANT: Uses hex-vertex deduplication to prevent double-counting
+ * but allows a settlement at intersection of 2 same-resource hexes to get both.
+ * 
+ * @returns Object mapping playerIndex to resources gained
+ */
 function distributeResources(game, roll) {
   // Track what each player receives
   const gains = {};
@@ -860,7 +1038,10 @@ function distributeResources(game, roll) {
   return gains;
 }
 
-// Discard cards (when 7 rolled and player has > 7 cards)
+/** 
+ * Discard cards when a 7 is rolled
+ * Players with more than 7 cards must discard half (rounded down)
+ */
 export function discardCards(game, playerId, resources) {
   const playerIndex = game.players.findIndex(p => p.id === playerId);
   if (playerIndex === -1) {
@@ -902,7 +1083,13 @@ export function discardCards(game, playerId, resources) {
   return { success: true };
 }
 
-// Move robber
+/** 
+ * Move the robber to a new hex and optionally steal from a player
+ * 
+ * IMPORTANT: After moving robber, the turn phase depends on hasRolledThisTurn:
+ * - If Knight was played before rolling → return to 'roll' phase
+ * - If 7 was rolled (hasRolledThisTurn=true) → proceed to 'main' phase
+ */
 export function moveRobber(game, playerId, hexKey, stealFromPlayerId) {
   const player = game.players[game.currentPlayerIndex];
   
@@ -958,7 +1145,18 @@ export function moveRobber(game, playerId, hexKey, stealFromPlayerId) {
   return { success: true, stolenInfo };
 }
 
-// Check if vertex placement is valid
+// ============================================================================
+// BUILDING PLACEMENT
+// ============================================================================
+
+/** 
+ * Validate settlement placement
+ * Rules:
+ * - Vertex must be unoccupied
+ * - No adjacent buildings (distance rule)
+ * - Must connect to own road (except during setup)
+ * - Must have required resources (except during setup)
+ */
 export function canPlaceSettlement(game, playerId, vKey, isSetup = false) {
   const playerIndex = game.players.findIndex(p => p.id === playerId);
   if (playerIndex === -1) return { valid: false, error: 'Player not found' };
@@ -995,7 +1193,7 @@ export function canPlaceSettlement(game, playerId, vKey, isSetup = false) {
   return { valid: true };
 }
 
-// Place settlement
+/** Place a settlement on a valid vertex */
 export function placeSettlement(game, playerId, vKey) {
   const isSetup = game.phase === 'setup';
   const validation = canPlaceSettlement(game, playerId, vKey, isSetup);
@@ -1027,7 +1225,10 @@ export function placeSettlement(game, playerId, vKey) {
   return { success: true };
 }
 
-// Give initial resources for second settlement
+/** 
+ * Give initial resources for second settlement during setup
+ * Player receives one of each resource from adjacent hexes
+ */
 function giveInitialResources(game, vKey, playerIndex) {
   const match = vKey.match(/v_(-?\d+)_(-?\d+)_(\d+)/);
   if (!match) return;
@@ -1047,8 +1248,10 @@ function giveInitialResources(game, vKey, playerIndex) {
   });
 }
 
-// Get hexes adjacent to a vertex for POINTY-TOP hex
-// Each vertex is shared by exactly 3 hexes
+/** 
+ * Get the 3 hexes that share a vertex
+ * Used for initial resource distribution during setup
+ */
 function getAdjacentHexesToVertex(q, r, dir) {
   const hexes = [{ hq: q, hr: r }];
   
@@ -1076,7 +1279,14 @@ function getAdjacentHexesToVertex(q, r, dir) {
   return hexes;
 }
 
-// Check if road placement is valid
+/** 
+ * Validate road placement
+ * Rules:
+ * - Edge must be unoccupied (checking all equivalent edge keys)
+ * - Must connect to own road or building
+ * - During setup: must connect to the just-placed settlement
+ * - Must have required resources (except during setup or free roads)
+ */
 export function canPlaceRoad(game, playerId, eKey, isSetup = false, lastSettlement = null) {
   const playerIndex = game.players.findIndex(p => p.id === playerId);
   if (playerIndex === -1) return { valid: false, error: 'Player not found' };
@@ -1158,9 +1368,10 @@ export function canPlaceRoad(game, playerId, eKey, isSetup = false, lastSettleme
   return { valid: true };
 }
 
-// Get vertices at ends of an edge
-// Get vertices at ends of an edge for POINTY-TOP hex
-// Edge 0=upper-right, 1=right, 2=lower-right, 3=lower-left, 4=left, 5=upper-left
+/** 
+ * Get the two vertices at the ends of an edge
+ * Edge directions: 0=upper-right, 1=right, 2=lower-right, 3=lower-left, 4=left, 5=upper-left
+ */
 function getEdgeVertices(q, r, dir) {
   // Each edge connects two adjacent vertices
   if (dir === 0) return [vertexKey(q, r, 0), vertexKey(q, r, 1)]; // upper-right edge: top to upper-right
@@ -1172,7 +1383,7 @@ function getEdgeVertices(q, r, dir) {
   return [];
 }
 
-// Place road
+/** Place a road on a valid edge */
 export function placeRoad(game, playerId, eKey, isSetup = false, lastSettlement = null) {
   const validation = canPlaceRoad(game, playerId, eKey, isSetup, lastSettlement);
   
@@ -1201,7 +1412,7 @@ export function placeRoad(game, playerId, eKey, isSetup = false, lastSettlement 
   return { success: true };
 }
 
-// Upgrade settlement to city
+/** Upgrade an existing settlement to a city (costs 3 ore + 2 grain) */
 export function upgradeToCity(game, playerId, vKey) {
   const playerIndex = game.players.findIndex(p => p.id === playerId);
   if (playerIndex === -1) {
@@ -1239,7 +1450,14 @@ export function upgradeToCity(game, playerId, vKey) {
   return { success: true };
 }
 
-// Buy development card
+// ============================================================================
+// DEVELOPMENT CARDS
+// ============================================================================
+
+/** 
+ * Buy a development card (costs 1 ore + 1 grain + 1 wool)
+ * Card is added to newDevCards - can't be played until next turn
+ */
 export function buyDevCard(game, playerId) {
   const playerIndex = game.players.findIndex(p => p.id === playerId);
   if (playerIndex === -1) {
@@ -1274,7 +1492,13 @@ export function buyDevCard(game, playerId) {
   return { success: true, card };
 }
 
-// Play development card
+/** 
+ * Play a development card
+ * Rules:
+ * - Can only play one dev card per turn
+ * - Can't play cards bought this turn
+ * - VP cards are never "played" (just count toward victory)
+ */
 export function playDevCard(game, playerId, cardType, params = {}) {
   const playerIndex = game.players.findIndex(p => p.id === playerId);
   if (playerIndex === -1) {
@@ -1341,7 +1565,7 @@ export function playDevCard(game, playerId, cardType, params = {}) {
   return { success: true };
 }
 
-// Year of Plenty - pick resources
+/** Year of Plenty card effect - pick 2 free resources from the bank */
 export function yearOfPlentyPick(game, playerId, resource) {
   const playerIndex = game.players.findIndex(p => p.id === playerId);
   if (playerIndex === -1) {
@@ -1363,8 +1587,11 @@ export function yearOfPlentyPick(game, playerId, resource) {
   return { success: true };
 }
 
-// Trade with bank (4:1 or port ratios)
-// Get the ports accessible to a player (based on their settlements/cities)
+// ============================================================================
+// TRADING
+// ============================================================================
+
+/** Get all ports accessible to a player (based on their settlements/cities) */
 export function getPlayerPorts(game, playerIndex) {
   const playerPorts = [];
   
@@ -1393,7 +1620,10 @@ export function getPlayerPorts(game, playerIndex) {
   return playerPorts;
 }
 
-// Get the best trade ratio for a player and a specific resource
+/** 
+ * Get the best trade ratio for a player and a specific resource
+ * Priority: 2:1 specific port > 3:1 generic port > 4:1 default
+ */
 export function getTradeRatio(game, playerIndex, resource) {
   const ports = getPlayerPorts(game, playerIndex);
   
@@ -1409,6 +1639,7 @@ export function getTradeRatio(game, playerIndex, resource) {
   return 4;
 }
 
+/** Execute a trade with the bank using port ratios */
 export function bankTrade(game, playerId, giveResource, giveAmount, getResource) {
   const playerIndex = game.players.findIndex(p => p.id === playerId);
   if (playerIndex === -1) {
@@ -1442,7 +1673,7 @@ export function bankTrade(game, playerId, giveResource, giveAmount, getResource)
   return { success: true };
 }
 
-// Propose trade to other players
+/** Propose a trade offer to other players */
 export function proposeTrade(game, playerId, offer, request) {
   const playerIndex = game.players.findIndex(p => p.id === playerId);
   if (playerIndex === -1) {
@@ -1476,7 +1707,7 @@ export function proposeTrade(game, playerId, offer, request) {
   return { success: true };
 }
 
-// Respond to trade
+/** Respond to a trade offer (accept or decline) */
 export function respondToTrade(game, playerId, accept) {
   if (!game.tradeOffer) {
     return { success: false, error: 'No trade offer' };
@@ -1531,7 +1762,7 @@ export function respondToTrade(game, playerId, accept) {
   }
 }
 
-// Cancel trade
+/** Cancel an active trade offer */
 export function cancelTrade(game, playerId) {
   if (!game.tradeOffer) {
     return { success: false, error: 'No trade offer' };
@@ -1546,7 +1777,17 @@ export function cancelTrade(game, playerId) {
   return { success: true };
 }
 
-// End turn
+// ============================================================================
+// TURN MANAGEMENT
+// ============================================================================
+
+/** 
+ * End the current player's turn
+ * - Moves new dev cards to playable cards
+ * - Resets turn-based flags
+ * - In 5-6 player games: initiates Special Building Phase
+ * - Advances to next player
+ */
 export function endTurn(game, playerId) {
   const playerIndex = game.players.findIndex(p => p.id === playerId);
   
@@ -1595,7 +1836,10 @@ export function endTurn(game, playerId) {
   return { success: true };
 }
 
-// End special building phase for a player (5-6 player extension)
+/** 
+ * End special building phase for a player (5-6 player extension)
+ * Advances to next player or ends the phase if all players have gone
+ */
 export function endSpecialBuild(game, playerId) {
   if (!game.specialBuildingPhase) {
     return { success: false, error: 'Not in special building phase' };
@@ -1627,14 +1871,14 @@ export function endSpecialBuild(game, playerId) {
   return { success: true };
 }
 
-// Check if player can act in special building phase
+/** Check if a player can currently act in the special building phase */
 export function canSpecialBuild(game, playerId) {
   if (!game.specialBuildingPhase) return false;
   const playerIndex = game.players.findIndex(p => p.id === playerId);
   return game.specialBuildIndex === playerIndex;
 }
 
-// Helper function to check if player can build (regular turn or special building phase)
+/** Check if a player can currently build (regular turn or special building phase) */
 function canPlayerBuildNow(game, playerId) {
   const playerIndex = game.players.findIndex(p => p.id === playerId);
   if (playerIndex === -1) return false;
@@ -1652,7 +1896,10 @@ function canPlayerBuildNow(game, playerId) {
   return false;
 }
 
-// Advance setup phase
+/** 
+ * Advance the setup phase after a player places their settlement + road
+ * Setup follows snake order: 1→2→3→4→4→3→2→1 for 4 players
+ */
 export function advanceSetup(game, playerId) {
   const player = game.players[game.currentPlayerIndex];
   
@@ -1688,7 +1935,11 @@ export function advanceSetup(game, playerId) {
   return { success: true };
 }
 
-// Helper functions
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+/** Check if a player has enough resources for a given cost */
 function hasResources(player, costs) {
   for (const [resource, amount] of Object.entries(costs)) {
     if (player.resources[resource] < amount) {
@@ -1698,13 +1949,28 @@ function hasResources(player, costs) {
   return true;
 }
 
+/** Deduct resources from a player */
 function deductResources(player, costs) {
   for (const [resource, amount] of Object.entries(costs)) {
     player.resources[resource] -= amount;
   }
 }
 
-// Calculate longest road for a player using DFS
+// ============================================================================
+// LONGEST ROAD CALCULATION
+// ============================================================================
+
+/** 
+ * Calculate a player's longest continuous road using Depth-First Search
+ * 
+ * Key rules:
+ * - Roads must be connected to count
+ * - Opponent settlements break road continuity at that vertex
+ * - Own settlements do NOT break continuity
+ * - Can traverse circular paths but each road segment only counts once per path
+ * 
+ * @returns The length of the longest continuous road for this player
+ */
 function calculateRoadLength(game, playerIndex) {
   const playerEdges = Object.entries(game.edges)
     .filter(([_, edge]) => edge.road && edge.owner === playerIndex)
@@ -1761,7 +2027,7 @@ function calculateRoadLength(game, playerIndex) {
   return maxLength;
 }
 
-// Check if opponent has a building at a vertex
+/** Check if an opponent has a building at a vertex (breaks road continuity) */
 function hasOpponentBuildingAtVertex(game, vKey, playerIndex) {
   const match = vKey.match(/v_(-?\d+)_(-?\d+)_(\d+)/);
   if (!match) return false;
@@ -1779,6 +2045,15 @@ function hasOpponentBuildingAtVertex(game, vKey, playerIndex) {
   return false;
 }
 
+/** 
+ * Update the Longest Road holder after any road placement
+ * 
+ * Rules:
+ * - Need at least 5 roads to claim Longest Road
+ * - Current holder keeps it on ties
+ * - If current holder loses longest and there's a tie, nobody gets it
+ * - Worth 2 Victory Points
+ */
 export function updateLongestRoad(game) {
   // Calculate road lengths for all players
   const roadLengths = game.players.map((player, idx) => {
@@ -1851,6 +2126,18 @@ export function updateLongestRoad(game) {
   // If tie and no current holder, no one gets it (stays null)
 }
 
+// ============================================================================
+// LARGEST ARMY CALCULATION
+// ============================================================================
+
+/** 
+ * Update the Largest Army holder after playing a Knight
+ * 
+ * Rules:
+ * - Need at least 3 knights to claim Largest Army
+ * - Current holder keeps it on ties
+ * - Worth 2 Victory Points
+ */
 function updateLargestArmy(game) {
   // Find the maximum knights played among all players
   const maxKnights = Math.max(...game.players.map(p => p.knightsPlayed));
@@ -1905,6 +2192,14 @@ function updateLargestArmy(game) {
   // If tie and no current holder, no one gets it (stays null)
 }
 
+// ============================================================================
+// VICTORY CONDITION
+// ============================================================================
+
+/** 
+ * Check if any player has won (10+ victory points)
+ * When game ends, reveals all hidden VP cards and updates final scores
+ */
 function checkWinner(game) {
   for (const player of game.players) {
     // Total VP = visible VP + hidden VP from dev cards
@@ -1924,7 +2219,20 @@ function checkWinner(game) {
   }
 }
 
-// Get game state for a specific player (hides other players' dev cards)
+// ============================================================================
+// PLAYER VIEW (for sending game state to clients)
+// ============================================================================
+
+/** 
+ * Get a player-specific view of the game state
+ * 
+ * Hides private information from other players:
+ * - Other players' development cards (shows count only)
+ * - Other players' specific resources (shows total count only)
+ * - Other players' hidden VP cards
+ * 
+ * After game ends, all information becomes public.
+ */
 export function getPlayerView(game, playerId) {
   const playerIndex = game.players.findIndex(p => p.id === playerId);
   
@@ -1962,7 +2270,11 @@ export function getPlayerView(game, playerId) {
   };
 }
 
-// Get hexes adjacent to a vertex for resource distribution display
+// ============================================================================
+// PUBLIC UTILITY FUNCTIONS
+// ============================================================================
+
+/** Get hexes adjacent to a vertex (for resource distribution display) */
 export function getVertexAdjacentHexes(game, vKey) {
   const match = vKey.match(/v_(-?\d+)_(-?\d+)_(\d+)/);
   if (!match) return [];
@@ -1977,7 +2289,7 @@ export function getVertexAdjacentHexes(game, vKey) {
     .filter(h => h);
 }
 
-// Get players with buildings adjacent to a hex (for robber stealing)
+/** Get players with buildings adjacent to a hex (for robber stealing) */
 export function getPlayersOnHex(game, hKey, excludePlayer = null) {
   const hex = game.hexes[hKey];
   if (!hex) return [];

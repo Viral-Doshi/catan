@@ -1,3 +1,17 @@
+/**
+ * ============================================================================
+ * CATAN CLIENT APPLICATION
+ * ============================================================================
+ * 
+ * Main React application for the Catan game client.
+ * Handles:
+ * - Socket.io connection management
+ * - Game state management
+ * - Session persistence (localStorage)
+ * - Global notifications
+ * - Keep-alive pings (for Render free tier)
+ */
+
 import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { io } from 'socket.io-client';
@@ -5,22 +19,31 @@ import Lobby from './components/Lobby';
 import GameBoard from './components/GameBoard';
 import './App.css';
 
+// Server URL from environment variable, falls back to localhost for development
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001';
 
 // Keep server alive by pinging every 4 minutes (Render free tier spins down after 15 min)
-const KEEP_ALIVE_INTERVAL = 4 * 60 * 1000; // 4 minutes
+const KEEP_ALIVE_INTERVAL = 4 * 60 * 1000;
 
 function App() {
-  const [socket, setSocket] = useState(null);
-  const [connected, setConnected] = useState(false);
-  const [gameState, setGameState] = useState(null);
-  const [playerId, setPlayerId] = useState(null);
-  const [gameCode, setGameCode] = useState(null);
-  const [error, setError] = useState(null);
-  const [chatMessages, setChatMessages] = useState([]);
-  const [notifications, setNotifications] = useState([]);
-  const [serverFull, setServerFull] = useState(false);
+  // ============================================================================
+  // STATE MANAGEMENT
+  // ============================================================================
+  
+  const [socket, setSocket] = useState(null);           // Socket.io connection
+  const [connected, setConnected] = useState(false);     // Connection status
+  const [gameState, setGameState] = useState(null);      // Current game state from server
+  const [playerId, setPlayerId] = useState(null);        // This player's unique ID
+  const [gameCode, setGameCode] = useState(null);        // Current game room code
+  const [error, setError] = useState(null);              // Error messages for display
+  const [chatMessages, setChatMessages] = useState([]);  // Chat message history
+  const [notifications, setNotifications] = useState([]); // Toast notifications
+  const [serverFull, setServerFull] = useState(false);   // Server capacity flag
 
+  // ============================================================================
+  // SOCKET CONNECTION & EVENT HANDLERS
+  // ============================================================================
+  
   useEffect(() => {
     const newSocket = io(SERVER_URL);
     
@@ -103,7 +126,10 @@ function App() {
     };
   }, []);
 
-  // Keep-alive ping to prevent Render free tier from spinning down
+  // ============================================================================
+  // KEEP-ALIVE PING (prevents Render free tier from sleeping)
+  // ============================================================================
+  
   useEffect(() => {
     const pingServer = async () => {
       try {
@@ -123,6 +149,11 @@ function App() {
     return () => clearInterval(interval);
   }, []);
 
+  // ============================================================================
+  // NOTIFICATION HELPERS
+  // ============================================================================
+  
+  /** Add a toast notification that auto-dismisses after 4 seconds */
   const addNotification = useCallback((message) => {
     const id = Date.now();
     setNotifications(prev => [...prev, { id, message }]);
@@ -131,6 +162,11 @@ function App() {
     }, 4000);
   }, []);
 
+  // ============================================================================
+  // GAME ACTIONS
+  // ============================================================================
+  
+  /** Create a new game room as the host */
   const handleCreateGame = useCallback((playerName, isExtended = false, enableSpecialBuild = true) => {
     if (!socket) return;
     
@@ -149,6 +185,7 @@ function App() {
     });
   }, [socket]);
 
+  /** Join an existing game room using a code */
   const handleJoinGame = useCallback((code, playerName) => {
     if (!socket) return;
     
@@ -167,6 +204,7 @@ function App() {
     });
   }, [socket]);
 
+  /** Leave the current game and return to lobby */
   const handleLeaveGame = useCallback(() => {
     setGameState(null);
     setGameCode(null);
@@ -175,6 +213,11 @@ function App() {
     localStorage.removeItem('catanGame');
   }, []);
 
+  // ============================================================================
+  // RENDER
+  // ============================================================================
+  
+  // Server at capacity - show retry screen
   if (serverFull) {
     return (
       <div className="loading-screen server-full">
@@ -195,6 +238,7 @@ function App() {
     );
   }
 
+  // Connecting to server - show loading screen
   if (!connected) {
     return (
       <div className="loading-screen">
@@ -207,6 +251,7 @@ function App() {
     );
   }
 
+  // No active game - show lobby for creating/joining games
   if (!gameState) {
     return (
       <Lobby 
@@ -218,6 +263,7 @@ function App() {
     );
   }
 
+  // Active game - render the game board
   return (
     <>
       <div className="app">
@@ -232,7 +278,7 @@ function App() {
         />
       </div>
       
-      {/* Notifications - rendered via Portal directly to body to avoid CSS issues */}
+      {/* Toast notifications - rendered via Portal to document.body for proper z-index */}
       {createPortal(
         <div className="notifications">
           {notifications.map(n => (
