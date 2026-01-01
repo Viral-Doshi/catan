@@ -5,7 +5,7 @@ const DEV_CARD_INFO = {
   knight: {
     name: 'Knight',
     icon: '⚔️',
-    description: 'Move the robber to a new hex and steal a random resource from an opponent with a building adjacent to that hex.',
+    description: 'Move the robber to a new hex and steal a resource from an opponent with a building adjacent to that hex.',
     color: '#8b4513',
     bgGradient: 'linear-gradient(135deg, #654321 0%, #8b4513 50%, #a0522d 100%)'
   },

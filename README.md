@@ -103,3 +103,5 @@ This is an independent fan-made project for **educational purposes only**. It is
 
 "Catan" is a registered trademark of Catan GmbH. For the official game, visit [catan.com](https://www.catan.com/).
 
+
+
